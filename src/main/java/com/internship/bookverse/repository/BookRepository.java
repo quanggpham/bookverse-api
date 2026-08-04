@@ -18,6 +18,8 @@ public interface BookRepository extends JpaRepository<Book, Long> {
     @Query("SELECT b FROM Book b WHERE (LOWER(b.title) LIKE LOWER(CONCAT('%', :title, '%')) OR LOWER(b.author) LIKE LOWER(CONCAT('%', :author, '%'))) AND (:category IS NULL OR b.category = :category)")
     Page<Book> searchBooks(@Param("title") String title, @Param("author") String author, @Param("category") String category, Pageable pageable);
 
+    Page<Book> findByYear(Integer year, Pageable pageable);
+
     boolean existsByIsbn(String isbn);
 
     Optional<Book> findByIsbn(String isbn);

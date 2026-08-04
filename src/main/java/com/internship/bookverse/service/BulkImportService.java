@@ -44,8 +44,8 @@ public class BulkImportService {
 
     private BulkImportResult importFromCsv(MultipartFile file) {
         int totalRows = 0;
-        int successCount = 0;
         List<BulkImportResult.ImportError> errors = new ArrayList<>();
+        List<Book> validBooks = new ArrayList<>();
 
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
             String header = reader.readLine(); // skip header
@@ -74,11 +74,14 @@ public class BulkImportService {
                             .description(fields.length > 6 ? fields[6].trim() : null)
                             .build();
 
-                    bookRepository.save(book);
-                    successCount++;
+                    validBooks.add(book);
                 } catch (Exception e) {
                     errors.add(new BulkImportResult.ImportError(totalRows + 1, e.getMessage()));
                 }
+            }
+
+            if (!validBooks.isEmpty()) {
+                bookRepository.saveAll(validBooks);
             }
         } catch (Exception e) {
             log.error("Failed to parse CSV file", e);
@@ -87,7 +90,7 @@ public class BulkImportService {
 
         return BulkImportResult.builder()
                 .totalRows(totalRows)
-                .successCount(successCount)
+                .successCount(validBooks.size())
                 .failedCount(errors.size())
                 .errors(errors)
                 .build();
@@ -95,8 +98,8 @@ public class BulkImportService {
 
     private BulkImportResult importFromExcel(MultipartFile file) {
         int totalRows = 0;
-        int successCount = 0;
         List<BulkImportResult.ImportError> errors = new ArrayList<>();
+        List<Book> validBooks = new ArrayList<>();
 
         try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
@@ -124,11 +127,14 @@ public class BulkImportService {
                             .description(getCellString(row, 6))
                             .build();
 
-                    bookRepository.save(book);
-                    successCount++;
+                    validBooks.add(book);
                 } catch (Exception e) {
                     errors.add(new BulkImportResult.ImportError(rowIdx + 1, e.getMessage()));
                 }
+            }
+
+            if (!validBooks.isEmpty()) {
+                bookRepository.saveAll(validBooks);
             }
         } catch (Exception e) {
             log.error("Failed to parse Excel file", e);
@@ -137,7 +143,7 @@ public class BulkImportService {
 
         return BulkImportResult.builder()
                 .totalRows(totalRows)
-                .successCount(successCount)
+                .successCount(validBooks.size())
                 .failedCount(errors.size())
                 .errors(errors)
                 .build();

@@ -24,10 +24,14 @@ public class BookService {
     private final BookRepository bookRepository;
     private final BookMapper bookMapper;
 
-    @Cacheable(value = "books", key = "{#pageable.pageNumber, #pageable.pageSize, #category, #year}")
+    @Cacheable(value = "books", key = "{#pageable.pageNumber, #pageable.pageSize, #pageable.sort, #category, #year}")
     public Page<BookResponse> getAll(Pageable pageable, String category, Integer year) {
         if (category != null) {
             return bookRepository.findByCategory(category, pageable)
+                    .map(bookMapper::toResponse);
+        }
+        if (year != null) {
+            return bookRepository.findByYear(year, pageable)
                     .map(bookMapper::toResponse);
         }
         return bookRepository.findAll(pageable)
@@ -71,7 +75,7 @@ public class BookService {
         bookRepository.deleteById(id);
     }
 
-    @Cacheable(value = "bookSearch", key = "{#q, #category, #pageable.pageNumber, #pageable.pageSize}")
+    @Cacheable(value = "bookSearch", key = "{#q, #category, #pageable.pageNumber, #pageable.pageSize, #pageable.sort}")
     public Page<BookResponse> search(String q, String category, Pageable pageable) {
         return bookRepository.searchBooks(q, q, category, pageable)
                 .map(bookMapper::toResponse);

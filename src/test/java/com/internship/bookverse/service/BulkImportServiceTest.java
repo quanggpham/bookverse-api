@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -43,7 +44,7 @@ class BulkImportServiceTest {
         assertThat(result.getTotalRows()).isEqualTo(3);
         assertThat(result.getSuccessCount()).isEqualTo(3);
         assertThat(result.getFailedCount()).isEqualTo(0);
-        verify(bookRepository, times(3)).save(any(Book.class));
+        verify(bookRepository, times(1)).saveAll(anyList());
     }
 
     @Test

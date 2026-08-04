@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.core.io.Resource;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -81,7 +82,7 @@ public class BookController {
     }
 
     @GetMapping("/{id}/cover")
-    public ResponseEntity<?> getCover(
+    public ResponseEntity<Resource> getCover(
             @PathVariable Long id,
             @RequestParam(defaultValue = "large") String size) {
         BookResponse book = bookService.getById(id);

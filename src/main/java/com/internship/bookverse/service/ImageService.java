@@ -26,6 +26,7 @@ public class ImageService {
 
     private static final Set<String> ALLOWED_FORMATS = Set.of(
             "image/jpeg", "image/png", "image/webp");
+    private static final Set<String> ALLOWED_SIZES = Set.of("thumb", "medium", "large");
     private static final int THUMBNAIL_WIDTH = 200;
     private static final int MEDIUM_WIDTH = 500;
     private static final int LARGE_WIDTH = 1200;
@@ -58,6 +59,11 @@ public class ImageService {
     }
 
     public ResponseEntity<Resource> serve(String coverPath, String size) {
+        if (!ALLOWED_SIZES.contains(size)) {
+            throw new InvalidImageFormatException(
+                    "Invalid size: " + size + ". Allowed: thumb, medium, large");
+        }
+
         if (coverPath == null) {
             return ResponseEntity.notFound().build();
         }

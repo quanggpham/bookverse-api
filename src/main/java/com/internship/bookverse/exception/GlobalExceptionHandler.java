@@ -40,6 +40,18 @@ public class GlobalExceptionHandler {
                         .build());
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(
+            IllegalArgumentException ex, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.builder()
+                        .code("BAD_REQUEST")
+                        .message(ex.getMessage())
+                        .timestamp(LocalDateTime.now())
+                        .path(request.getRequestURI())
+                        .build());
+    }
+
     @ExceptionHandler(InvalidImageFormatException.class)
     public ResponseEntity<ErrorResponse> handleInvalidImageFormat(
             InvalidImageFormatException ex, HttpServletRequest request) {
