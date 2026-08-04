@@ -3,7 +3,9 @@ package com.internship.bookverse.controller;
 import com.internship.bookverse.dto.request.BookCreateRequest;
 import com.internship.bookverse.dto.request.BookUpdateRequest;
 import com.internship.bookverse.dto.response.BookResponse;
+import com.internship.bookverse.dto.response.BulkImportResult;
 import com.internship.bookverse.service.BookService;
+import com.internship.bookverse.service.BulkImportService;
 import com.internship.bookverse.service.ImageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,7 @@ public class BookController {
 
     private final BookService bookService;
     private final ImageService imageService;
+    private final BulkImportService bulkImportService;
 
     @GetMapping
     public ResponseEntity<Page<BookResponse>> getAll(
@@ -48,6 +51,12 @@ public class BookController {
             response = bookService.updateCoverPath(response.getId(), coverPath);
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PostMapping("/bulk")
+    public ResponseEntity<BulkImportResult> bulkImport(
+            @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(bulkImportService.importBooks(file));
     }
 
     @PutMapping("/{id}")
