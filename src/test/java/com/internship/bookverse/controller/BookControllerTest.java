@@ -7,6 +7,8 @@ import com.internship.bookverse.dto.response.BookResponse;
 import com.internship.bookverse.exception.BookNotFoundException;
 import com.internship.bookverse.exception.GlobalExceptionHandler;
 import com.internship.bookverse.service.BookService;
+import com.internship.bookverse.service.BulkImportService;
+import com.internship.bookverse.service.ImageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +42,12 @@ class BookControllerTest {
 
     @MockBean
     private BookService bookService;
+
+    @MockBean
+    private ImageService imageService;
+
+    @MockBean
+    private BulkImportService bulkImportService;
 
     private BookResponse bookResponse;
 
@@ -163,8 +171,10 @@ class BookControllerTest {
     }
 
     @Test
-    void getCover_shouldReturn404() throws Exception {
-        mockMvc.perform(get("/api/books/1/cover"))
+    void getCover_shouldReturn404_whenBookNotFound() throws Exception {
+        when(bookService.getById(99L)).thenThrow(new BookNotFoundException(99L));
+
+        mockMvc.perform(get("/api/books/99/cover"))
                 .andExpect(status().isNotFound());
     }
 }

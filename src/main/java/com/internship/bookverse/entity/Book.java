@@ -3,7 +3,7 @@ package com.internship.bookverse.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.Where;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDateTime;
 
@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
     @Index(name = "idx_book_title_author", columnList = "title, author")
 })
 @SQLDelete(sql = "UPDATE book SET deleted = true WHERE id = ?")
-@Where(clause = "deleted = false")
+@SQLRestriction("deleted = false")
 @Getter
 @Setter
 @NoArgsConstructor
