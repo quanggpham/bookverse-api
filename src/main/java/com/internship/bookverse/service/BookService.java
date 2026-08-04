@@ -65,13 +65,7 @@ public class BookService {
     }
 
     public Page<BookResponse> search(String q, String category, Pageable pageable) {
-        if (category != null) {
-            return bookRepository
-                    .findByTitleContainingIgnoreCaseOrAuthorContainingIgnoreCaseAndCategory(q, q, category, pageable)
-                    .map(bookMapper::toResponse);
-        }
-        return bookRepository
-                .findByTitleContainingIgnoreCaseOrAuthorContainingIgnoreCase(q, q, pageable)
+        return bookRepository.searchBooks(q, q, category, pageable)
                 .map(bookMapper::toResponse);
     }
 
