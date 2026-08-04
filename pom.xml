@@ -91,6 +91,14 @@
             <version>0.4.20</version>
         </dependency>
 
+        <!-- WebP ImageIO plugin (needed for Thumbnailator WebP output) -->
+        <dependency>
+            <groupId>org.sejda.imageio</groupId>
+            <artifactId>webp-imageio</artifactId>
+            <version>0.1.6</version>
+            <scope>test</scope>
+        </dependency>
+
         <!-- Excel/CSV parsing (bulk upload) -->
         <dependency>
             <groupId>org.apache.poi</groupId>
