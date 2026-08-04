@@ -45,6 +45,7 @@ public class Book {
 
     private String coverPath;
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean deleted = false;
 
