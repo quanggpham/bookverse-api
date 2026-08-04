@@ -96,7 +96,6 @@
             <groupId>org.sejda.imageio</groupId>
             <artifactId>webp-imageio</artifactId>
             <version>0.1.6</version>
-            <scope>test</scope>
         </dependency>
 
         <!-- Excel/CSV parsing (bulk upload) -->
