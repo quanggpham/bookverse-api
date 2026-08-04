@@ -4,6 +4,7 @@ import com.internship.bookverse.dto.request.BookCreateRequest;
 import com.internship.bookverse.dto.request.BookUpdateRequest;
 import com.internship.bookverse.dto.response.BookResponse;
 import com.internship.bookverse.service.BookService;
+import com.internship.bookverse.service.ImageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -22,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class BookController {
 
     private final BookService bookService;
+    private final ImageService imageService;
 
     @GetMapping
     public ResponseEntity<Page<BookResponse>> getAll(
@@ -41,7 +43,10 @@ public class BookController {
             @RequestPart("book") @Valid BookCreateRequest request,
             @RequestPart(value = "cover", required = false) MultipartFile cover) {
         BookResponse response = bookService.create(request);
-        // Image upload handled in Phase 4
+        if (cover != null && !cover.isEmpty()) {
+            String coverPath = imageService.upload(cover, response.getId());
+            response = bookService.updateCoverPath(response.getId(), coverPath);
+        }
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -70,7 +75,7 @@ public class BookController {
     public ResponseEntity<?> getCover(
             @PathVariable Long id,
             @RequestParam(defaultValue = "large") String size) {
-        // Image serve handled in Phase 4
-        return ResponseEntity.notFound().build();
+        BookResponse book = bookService.getById(id);
+        return imageService.serve(book.getCoverPath(), size);
     }
 }
