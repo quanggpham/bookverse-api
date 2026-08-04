@@ -11,6 +11,8 @@ import com.internship.bookverse.repository.BookRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +24,7 @@ public class BookService {
     private final BookRepository bookRepository;
     private final BookMapper bookMapper;
 
+    @Cacheable(value = "books", key = "{#pageable.pageNumber, #pageable.pageSize, #category, #year}")
     public Page<BookResponse> getAll(Pageable pageable, String category, Integer year) {
         if (category != null) {
             return bookRepository.findByCategory(category, pageable)
@@ -31,11 +34,13 @@ public class BookService {
                 .map(bookMapper::toResponse);
     }
 
+    @Cacheable(value = "bookById", key = "#id")
     public BookResponse getById(Long id) {
         Book book = findBookOrThrow(id);
         return bookMapper.toResponse(book);
     }
 
+    @CacheEvict(value = {"books", "bookSearch"}, allEntries = true)
     @Transactional
     public BookResponse create(BookCreateRequest request) {
         validateIsbnUniqueness(request.getIsbn());
@@ -44,6 +49,7 @@ public class BookService {
         return bookMapper.toResponse(saved);
     }
 
+    @CacheEvict(value = {"books", "bookSearch", "bookById"}, allEntries = true)
     @Transactional
     public BookResponse update(Long id, BookUpdateRequest request) {
         Book book = findBookOrThrow(id);
@@ -56,6 +62,7 @@ public class BookService {
         return bookMapper.toResponse(saved);
     }
 
+    @CacheEvict(value = {"books", "bookSearch", "bookById"}, allEntries = true)
     @Transactional
     public void delete(Long id) {
         if (!bookRepository.existsById(id)) {
@@ -64,6 +71,7 @@ public class BookService {
         bookRepository.deleteById(id);
     }
 
+    @Cacheable(value = "bookSearch", key = "{#q, #category, #pageable.pageNumber, #pageable.pageSize}")
     public Page<BookResponse> search(String q, String category, Pageable pageable) {
         return bookRepository.searchBooks(q, q, category, pageable)
                 .map(bookMapper::toResponse);
