@@ -77,6 +77,7 @@ public class BookService {
                 .map(bookMapper::toResponse);
     }
 
+    @CacheEvict(value = {"books", "bookSearch", "bookById"}, allEntries = true)
     @Transactional
     public BookResponse updateCoverPath(Long id, String coverPath) {
         Book book = findBookOrThrow(id);
