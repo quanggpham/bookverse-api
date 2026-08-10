@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -79,6 +80,19 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.builder()
                         .code("FILE_TOO_LARGE")
                         .message("File size exceeds the maximum allowed size")
+                        .timestamp(LocalDateTime.now())
+                        .path(request.getRequestURI())
+                        .build());
+    }
+
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ErrorResponse> handleMissingPart(
+            MissingServletRequestPartException ex, HttpServletRequest request) {
+        log.warn("400 MISSING_PART: {} {}", request.getMethod(), request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.builder()
+                        .code("MISSING_PART")
+                        .message("Required part is missing: " + ex.getRequestPartName())
                         .timestamp(LocalDateTime.now())
                         .path(request.getRequestURI())
                         .build());

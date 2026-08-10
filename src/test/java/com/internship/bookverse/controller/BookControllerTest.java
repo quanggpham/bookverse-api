@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.internship.bookverse.dto.request.BookCreateRequest;
 import com.internship.bookverse.dto.request.BookUpdateRequest;
 import com.internship.bookverse.dto.response.BookResponse;
+import com.internship.bookverse.dto.response.CategoryCount;
+import com.internship.bookverse.dto.response.YearCount;
 import com.internship.bookverse.exception.BookNotFoundException;
 import com.internship.bookverse.exception.GlobalExceptionHandler;
 import com.internship.bookverse.service.BookService;
@@ -16,9 +18,11 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -137,16 +141,18 @@ class BookControllerTest {
     }
 
     @Test
-    void update_shouldReturn200() throws Exception {
+    void update_shouldReturn200_whenMultipart() throws Exception {
         BookUpdateRequest request = BookUpdateRequest.builder()
                 .title("Updated Title")
                 .author("Updated Author")
                 .build();
         when(bookService.update(eq(1L), any())).thenReturn(bookResponse);
 
-        mockMvc.perform(put("/api/books/1")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+        MockMultipartFile bookPart = new MockMultipartFile(
+                "book", "", "application/json", objectMapper.writeValueAsString(request).getBytes());
+
+        mockMvc.perform(multipart(HttpMethod.PUT, "/api/books/1")
+                        .file(bookPart))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("Spring Boot in Action"));
     }
@@ -161,7 +167,7 @@ class BookControllerTest {
 
     @Test
     void search_shouldReturnPage() throws Exception {
-        when(bookService.search(any(), any(), any()))
+        when(bookService.search(any(), any(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(bookResponse)));
 
         mockMvc.perform(get("/api/books/search")
@@ -176,5 +182,46 @@ class BookControllerTest {
 
         mockMvc.perform(get("/api/books/99/cover"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getCategories_shouldReturnList() throws Exception {
+        when(bookService.getCategories())
+                .thenReturn(List.of(new CategoryCount("Technology", 5)));
+
+        mockMvc.perform(get("/api/books/categories"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("Technology"))
+                .andExpect(jsonPath("$[0].count").value(5));
+    }
+
+    @Test
+    void getYears_shouldReturnList() throws Exception {
+        when(bookService.getYears())
+                .thenReturn(List.of(new YearCount(2024, 8)));
+
+        mockMvc.perform(get("/api/books/years"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].year").value(2024))
+                .andExpect(jsonPath("$[0].count").value(8));
+    }
+
+    @Test
+    void updateCover_shouldReturn200() throws Exception {
+        when(bookService.getById(1L)).thenReturn(bookResponse);
+        when(bookService.updateCoverPath(eq(1L), any())).thenReturn(bookResponse);
+        MockMultipartFile cover = new MockMultipartFile(
+                "cover", "cover.png", "image/png", new byte[]{1, 2, 3});
+
+        mockMvc.perform(multipart(HttpMethod.PUT, "/api/books/1/cover").file(cover))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Spring Boot in Action"));
+    }
+
+    @Test
+    void updateCover_shouldReturn400_whenMissingPart() throws Exception {
+        mockMvc.perform(multipart(HttpMethod.PUT, "/api/books/1/cover"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MISSING_PART"));
     }
 }
