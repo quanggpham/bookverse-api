@@ -1,0 +1,1 @@
+This is a text file, not an image. Uploading it as a cover should trigger a 400 INVALID_IMAGE_FORMAT error from the API.

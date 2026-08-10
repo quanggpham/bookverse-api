@@ -9,6 +9,7 @@ import com.internship.bookverse.service.BulkImportService;
 import com.internship.bookverse.service.ImageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -23,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/books")
 @RequiredArgsConstructor
+@Slf4j
 public class BookController {
 
     private final BookService bookService;
@@ -34,11 +36,14 @@ public class BookController {
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) Integer year) {
+        log.info("GET /api/books?page={}&size={}&category={}&year={}",
+                pageable.getPageNumber(), pageable.getPageSize(), category, year);
         return ResponseEntity.ok(bookService.getAll(pageable, category, year));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<BookResponse> getById(@PathVariable Long id) {
+        log.debug("GET /api/books/{}", id);
         return ResponseEntity.ok(bookService.getById(id));
     }
 
@@ -46,10 +51,12 @@ public class BookController {
     public ResponseEntity<BookResponse> create(
             @RequestPart("book") @Valid BookCreateRequest request,
             @RequestPart(value = "cover", required = false) MultipartFile cover) {
+        log.info("POST /api/books title='{}' hasCover={}", request.getTitle(), cover != null && !cover.isEmpty());
         BookResponse response = bookService.create(request);
         if (cover != null && !cover.isEmpty()) {
             String coverPath = imageService.upload(cover, response.getId());
             response = bookService.updateCoverPath(response.getId(), coverPath);
+            log.info("POST /api/books: cover uploaded for id={} path={}", response.getId(), coverPath);
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -57,18 +64,25 @@ public class BookController {
     @PostMapping("/bulk")
     public ResponseEntity<BulkImportResult> bulkImport(
             @RequestParam("file") MultipartFile file) {
-        return ResponseEntity.ok(bulkImportService.importBooks(file));
+        String filename = file.getOriginalFilename();
+        log.info("POST /api/books/bulk file='{}' size={} bytes", filename, file.getSize());
+        BulkImportResult result = bulkImportService.importBooks(file);
+        log.info("POST /api/books/bulk: total={} success={} failed={}",
+                result.getTotalRows(), result.getSuccessCount(), result.getFailedCount());
+        return ResponseEntity.ok(result);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<BookResponse> update(
             @PathVariable Long id,
             @RequestBody @Valid BookUpdateRequest request) {
+        log.info("PUT /api/books/{} title='{}'", id, request.getTitle());
         return ResponseEntity.ok(bookService.update(id, request));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
+        log.info("DELETE /api/books/{}", id);
         bookService.delete(id);
         return ResponseEntity.noContent().build();
     }
@@ -78,6 +92,7 @@ public class BookController {
             @RequestParam String q,
             @RequestParam(required = false) String category,
             @PageableDefault(size = 20) Pageable pageable) {
+        log.info("GET /api/books/search?q='{}'&category={}&page={}", q, category, pageable.getPageNumber());
         return ResponseEntity.ok(bookService.search(q, category, pageable));
     }
 
@@ -85,6 +100,7 @@ public class BookController {
     public ResponseEntity<Resource> getCover(
             @PathVariable Long id,
             @RequestParam(defaultValue = "large") String size) {
+        log.debug("GET /api/books/{}/cover?size={}", id, size);
         BookResponse book = bookService.getById(id);
         return imageService.serve(book.getCoverPath(), size);
     }

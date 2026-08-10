@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @Table(name = "book", indexes = {
     @Index(name = "idx_book_title_author", columnList = "title, author")
 })
-@SQLDelete(sql = "UPDATE book SET deleted = true WHERE id = ?")
+@SQLDelete(sql = "UPDATE book SET deleted = true, isbn = NULL WHERE id = ?")
 @SQLRestriction("deleted = false")
 @Getter
 @Setter
@@ -33,6 +33,7 @@ public class Book {
     @Column(unique = true)
     private String isbn;
 
+    @Column(name = "publication_year")
     private Integer year;
 
     private String category;

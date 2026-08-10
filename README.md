@@ -94,7 +94,9 @@ java -jar target/bookverse-1.0.0.jar
 
 ### API Documentation
 
-Once running, visit: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
+- **Frontend developer guide** (full context, data model, every endpoint, error codes, gotchas): [`docs/API.md`](docs/API.md)
+- **Swagger UI** (interactive): [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) once running
+- **Postman collection** (ready-to-run with sample data): [`postman/README.md`](postman/README.md)
 
 ### Docker
 

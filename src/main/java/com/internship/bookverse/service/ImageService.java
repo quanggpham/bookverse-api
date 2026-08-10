@@ -36,10 +36,13 @@ public class ImageService {
 
     public String upload(MultipartFile file, Long bookId) {
         if (file == null || file.isEmpty()) {
+            log.debug("upload: no file provided for book id={}", bookId);
             return null;
         }
 
         validateFormat(file);
+        log.info("upload: bookId={} contentType={} size={} bytes",
+                bookId, file.getContentType(), file.getSize());
 
         try {
             String datePath = LocalDate.now().toString().replace("-", "/");
@@ -51,7 +54,9 @@ public class ImageService {
             resizeAndSave(file, baseDir, bookId, MEDIUM_WIDTH, "medium");
             resizeAndSave(file, baseDir, bookId, LARGE_WIDTH, "large");
 
-            return baseDir.resolve(String.valueOf(bookId)).toString().replace("\\", "/");
+            String coverPath = baseDir.resolve(String.valueOf(bookId)).toString().replace("\\", "/");
+            log.info("upload: saved 3 sizes to {}", coverPath);
+            return coverPath;
         } catch (IOException e) {
             log.error("Failed to process image for book {}", bookId, e);
             throw new RuntimeException("Failed to process image", e);
@@ -60,19 +65,23 @@ public class ImageService {
 
     public ResponseEntity<Resource> serve(String coverPath, String size) {
         if (!ALLOWED_SIZES.contains(size)) {
+            log.warn("serve: invalid size '{}', allowed={}", size, ALLOWED_SIZES);
             throw new InvalidImageFormatException(
                     "Invalid size: " + size + ". Allowed: thumb, medium, large");
         }
 
         if (coverPath == null) {
+            log.debug("serve: no coverPath — returning 404");
             return ResponseEntity.notFound().build();
         }
 
         Path filePath = Paths.get(coverPath + "-" + size + ".webp");
         if (!Files.exists(filePath)) {
+            log.warn("serve: file not found {}", filePath.toAbsolutePath());
             return ResponseEntity.notFound().build();
         }
 
+        log.debug("serve: {} {}", size, filePath);
         Resource resource = new FileSystemResource(filePath);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("image/webp"))
@@ -85,6 +94,7 @@ public class ImageService {
     private void validateFormat(MultipartFile file) {
         String contentType = file.getContentType();
         if (contentType == null || !ALLOWED_FORMATS.contains(contentType)) {
+            log.warn("validateFormat: rejected type={}", contentType);
             throw new InvalidImageFormatException(
                     "Invalid image format: " + contentType + ". Allowed: JPG, PNG, WebP");
         }
@@ -100,6 +110,7 @@ public class ImageService {
                 .outputFormat("webp")
                 .toFile(outputPath.toFile());
 
-        log.debug("Saved cover image: {}", outputPath);
+        log.debug("resizeAndSave: {} ({}px) -> {}",
+                sizeLabel, width, outputPath);
     }
 }

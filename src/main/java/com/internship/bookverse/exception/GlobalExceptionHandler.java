@@ -10,15 +10,19 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BookNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleBookNotFound(
             BookNotFoundException ex, HttpServletRequest request) {
+        log.warn("404 NOT_FOUND: {} {}", request.getMethod(), request.getRequestURI());
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.builder()
                         .code("BOOK_NOT_FOUND")
@@ -31,6 +35,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IsbnAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleIsbnDuplicate(
             IsbnAlreadyExistsException ex, HttpServletRequest request) {
+        log.warn("409 CONFLICT: {} {} — {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.builder()
                         .code("ISBN_ALREADY_EXISTS")
@@ -43,6 +48,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(
             IllegalArgumentException ex, HttpServletRequest request) {
+        log.warn("400 BAD_REQUEST: {} {} — {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.builder()
                         .code("BAD_REQUEST")
@@ -55,6 +61,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidImageFormatException.class)
     public ResponseEntity<ErrorResponse> handleInvalidImageFormat(
             InvalidImageFormatException ex, HttpServletRequest request) {
+        log.warn("400 INVALID_IMAGE: {} {} — {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.builder()
                         .code("INVALID_IMAGE_FORMAT")
@@ -67,6 +74,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorResponse> handleFileTooLarge(
             MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        log.warn("413 PAYLOAD_TOO_LARGE: {} {}", request.getMethod(), request.getRequestURI());
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
                 .body(ErrorResponse.builder()
                         .code("FILE_TOO_LARGE")
@@ -85,6 +93,8 @@ public class GlobalExceptionHandler {
                 .map(fe -> new ValidationErrorResponse.FieldError(
                         fe.getField(), fe.getDefaultMessage()))
                 .toList();
+        log.warn("400 VALIDATION: {} {} — {} field(s) invalid",
+                request.getMethod(), request.getRequestURI(), details.size());
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ValidationErrorResponse.builder()
@@ -99,6 +109,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleInternal(
             Exception ex, HttpServletRequest request) {
+        log.error("500 INTERNAL_ERROR: {} {} — {}", request.getMethod(), request.getRequestURI(),
+                ex.getMessage(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ErrorResponse.builder()
                         .code("INTERNAL_ERROR")

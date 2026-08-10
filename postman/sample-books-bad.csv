@@ -1,0 +1,3 @@
+Title,Author,ISBN,Year,Category,Rating,Description
+,Bad Row,9990000001,2000,,,Missing title and author.
+Good Book,Valid Author,9980000002,2001,Fiction,4.0,A valid row.

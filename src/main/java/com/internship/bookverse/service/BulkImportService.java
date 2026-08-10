@@ -16,7 +16,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -29,15 +31,19 @@ public class BulkImportService {
     public BulkImportResult importBooks(MultipartFile file) {
         String filename = file.getOriginalFilename();
         if (filename == null) {
+            log.debug("importBooks: null filename");
             return BulkImportResult.builder()
                     .totalRows(0).successCount(0).failedCount(0).build();
         }
+
+        log.info("importBooks: file='{}' size={}", filename, file.getSize());
 
         if (filename.endsWith(".csv")) {
             return importFromCsv(file);
         } else if (filename.endsWith(".xlsx")) {
             return importFromExcel(file);
         } else {
+            log.warn("importBooks: unsupported format {}", filename);
             throw new IllegalArgumentException("Unsupported file format. Use .csv or .xlsx");
         }
     }
@@ -50,6 +56,7 @@ public class BulkImportService {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
             String header = reader.readLine(); // skip header
             if (header == null) {
+                log.warn("importFromCsv: empty file");
                 return BulkImportResult.builder()
                         .totalRows(0).successCount(0).failedCount(0).build();
             }
@@ -76,18 +83,20 @@ public class BulkImportService {
 
                     validBooks.add(book);
                 } catch (Exception e) {
+                    log.debug("importFromCsv: row {} parse error: {}", totalRows + 1, e.getMessage());
                     errors.add(new BulkImportResult.ImportError(totalRows + 1, e.getMessage()));
                 }
             }
 
             if (!validBooks.isEmpty()) {
-                bookRepository.saveAll(validBooks);
+                saveAllCheckingDuplicates(validBooks, errors, totalRows);
             }
         } catch (Exception e) {
             log.error("Failed to parse CSV file", e);
             throw new RuntimeException("Failed to parse CSV file: " + e.getMessage());
         }
 
+        log.info("importFromCsv: rows={} valid={} errors={}", totalRows, validBooks.size(), errors.size());
         return BulkImportResult.builder()
                 .totalRows(totalRows)
                 .successCount(validBooks.size())
@@ -129,24 +138,61 @@ public class BulkImportService {
 
                     validBooks.add(book);
                 } catch (Exception e) {
+                    log.debug("importFromExcel: row {} parse error: {}", rowIdx + 1, e.getMessage());
                     errors.add(new BulkImportResult.ImportError(rowIdx + 1, e.getMessage()));
                 }
             }
 
             if (!validBooks.isEmpty()) {
-                bookRepository.saveAll(validBooks);
+                saveAllCheckingDuplicates(validBooks, errors, totalRows);
             }
         } catch (Exception e) {
             log.error("Failed to parse Excel file", e);
             throw new RuntimeException("Failed to parse Excel file: " + e.getMessage());
         }
 
+        log.info("importFromExcel: rows={} valid={} errors={}", totalRows, validBooks.size(), errors.size());
         return BulkImportResult.builder()
                 .totalRows(totalRows)
                 .successCount(validBooks.size())
                 .failedCount(errors.size())
                 .errors(errors)
                 .build();
+    }
+
+    /**
+     * Persists the validated books while guarding against ISBN duplicate
+     * collisions. Rows whose ISBN already exists in the database (or was seen
+     * earlier in the same import) are reported as failed rows rather than
+     * blowing up the whole save.
+     */
+    private void saveAllCheckingDuplicates(List<Book> validBooks,
+                                           List<BulkImportResult.ImportError> errors,
+                                           int totalRows) {
+        List<Book> selected = new ArrayList<>(validBooks.size());
+        Set<String> seenIsbns = new HashSet<>();
+
+        for (int i = 0; i < validBooks.size(); i++) {
+            Book candidate = validBooks.get(i);
+            String isbn = candidate.getIsbn();
+            if (isbn != null && !isbn.isBlank()
+                    && (bookRepository.existsByIsbn(isbn) || !seenIsbns.add(isbn))) {
+                int row = totalRows - validBooks.size() + i + 1; // 1-based data-row number
+                log.debug("saveAllCheckingDuplicates: skipping duplicate isbn={} at row {}", isbn, row);
+                errors.add(new BulkImportResult.ImportError(
+                        row, "Duplicate ISBN in file or database: " + isbn));
+            } else {
+                selected.add(candidate);
+            }
+        }
+
+        validBooks.clear();
+        validBooks.addAll(selected);
+
+        if (!selected.isEmpty()) {
+            log.debug("saveAllCheckingDuplicates: persisting {} books", selected.size());
+            bookRepository.saveAll(selected);
+        }
     }
 
     private String getCellString(Row row, int idx) {
