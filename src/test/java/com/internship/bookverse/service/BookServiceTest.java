@@ -3,6 +3,8 @@ package com.internship.bookverse.service;
 import com.internship.bookverse.dto.request.BookCreateRequest;
 import com.internship.bookverse.dto.request.BookUpdateRequest;
 import com.internship.bookverse.dto.response.BookResponse;
+import com.internship.bookverse.dto.response.CategoryCount;
+import com.internship.bookverse.dto.response.YearCount;
 import com.internship.bookverse.entity.Book;
 import com.internship.bookverse.exception.BookNotFoundException;
 import com.internship.bookverse.exception.IsbnAlreadyExistsException;
@@ -76,7 +78,7 @@ class BookServiceTest {
     @Test
     void getAll_shouldReturnPageOfBookResponses() {
         Page<Book> page = new PageImpl<>(List.of(book));
-        when(bookRepository.findAll(any(PageRequest.class))).thenReturn(page);
+        when(bookRepository.findByFilters(null, null, PageRequest.of(0, 10))).thenReturn(page);
 
         Page<BookResponse> result = bookService.getAll(PageRequest.of(0, 10), null, null);
 
@@ -87,7 +89,7 @@ class BookServiceTest {
     @Test
     void getAll_shouldFilterByCategory_whenCategoryProvided() {
         Page<Book> page = new PageImpl<>(List.of(book));
-        when(bookRepository.findByCategory("Technology", PageRequest.of(0, 10))).thenReturn(page);
+        when(bookRepository.findByFilters("Technology", null, PageRequest.of(0, 10))).thenReturn(page);
 
         Page<BookResponse> result = bookService.getAll(PageRequest.of(0, 10), "Technology", null);
 
@@ -218,9 +220,9 @@ class BookServiceTest {
     @Test
     void search_shouldReturnMatchingBooks() {
         Page<Book> page = new PageImpl<>(List.of(book));
-        when(bookRepository.searchBooks(any(), any(), any(), any())).thenReturn(page);
+        when(bookRepository.searchBooks(any(), any(), any(), any(), any())).thenReturn(page);
 
-        Page<BookResponse> result = bookService.search("Spring", null, PageRequest.of(0, 10));
+        Page<BookResponse> result = bookService.search("Spring", null, null, PageRequest.of(0, 10));
 
         assertThat(result.getTotalElements()).isEqualTo(1);
         assertThat(result.getContent().get(0).getTitle()).isEqualTo("Spring Boot in Action");
@@ -229,10 +231,55 @@ class BookServiceTest {
     @Test
     void search_shouldFilterByCategory_whenCategoryProvided() {
         Page<Book> page = new PageImpl<>(List.of(book));
-        when(bookRepository.searchBooks(any(), any(), any(), any())).thenReturn(page);
+        when(bookRepository.searchBooks(any(), any(), any(), any(), any())).thenReturn(page);
 
-        Page<BookResponse> result = bookService.search("Spring", "Technology", PageRequest.of(0, 10));
+        Page<BookResponse> result = bookService.search("Spring", "Technology", null, PageRequest.of(0, 10));
 
         assertThat(result.getTotalElements()).isEqualTo(1);
+    }
+
+    @Test
+    void getAll_shouldFilterByCategoryAndYear_whenBothProvided() {
+        Page<Book> page = new PageImpl<>(List.of(book));
+        when(bookRepository.findByFilters("Technology", 2016, PageRequest.of(0, 10))).thenReturn(page);
+
+        Page<BookResponse> result = bookService.getAll(PageRequest.of(0, 10), "Technology", 2016);
+
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        verify(bookRepository).findByFilters("Technology", 2016, PageRequest.of(0, 10));
+    }
+
+    @Test
+    void search_shouldFilterByYear_whenYearProvided() {
+        Page<Book> page = new PageImpl<>(List.of(book));
+        when(bookRepository.searchBooks(any(), any(), any(), any(), any())).thenReturn(page);
+
+        Page<BookResponse> result = bookService.search("Spring", null, 2016, PageRequest.of(0, 10));
+
+        assertThat(result.getTotalElements()).isEqualTo(1);
+    }
+
+    @Test
+    void getCategories_shouldReturnCategoryCounts() {
+        when(bookRepository.findDistinctCategories())
+                .thenReturn(List.of(new CategoryCount("Technology", 5), new CategoryCount("Fiction", 3)));
+
+        var result = bookService.getCategories();
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).name()).isEqualTo("Technology");
+        assertThat(result.get(0).count()).isEqualTo(5);
+    }
+
+    @Test
+    void getYears_shouldReturnYearCounts() {
+        when(bookRepository.findDistinctYears())
+                .thenReturn(List.of(new YearCount(2024, 8), new YearCount(2020, 2)));
+
+        var result = bookService.getYears();
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).year()).isEqualTo(2024);
+        assertThat(result.get(0).count()).isEqualTo(8);
     }
 }

@@ -91,9 +91,10 @@ public class BookController {
     public ResponseEntity<Page<BookResponse>> search(
             @RequestParam String q,
             @RequestParam(required = false) String category,
+            @RequestParam(required = false) Integer year,
             @PageableDefault(size = 20) Pageable pageable) {
-        log.info("GET /api/books/search?q='{}'&category={}&page={}", q, category, pageable.getPageNumber());
-        return ResponseEntity.ok(bookService.search(q, category, pageable));
+        log.info("GET /api/books/search?q='{}'&category={}&year={}&page={}", q, category, year, pageable.getPageNumber());
+        return ResponseEntity.ok(bookService.search(q, category, year, pageable));
     }
 
     @GetMapping("/{id}/cover")

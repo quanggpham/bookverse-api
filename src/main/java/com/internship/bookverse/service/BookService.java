@@ -3,6 +3,8 @@ package com.internship.bookverse.service;
 import com.internship.bookverse.dto.request.BookCreateRequest;
 import com.internship.bookverse.dto.request.BookUpdateRequest;
 import com.internship.bookverse.dto.response.BookResponse;
+import com.internship.bookverse.dto.response.CategoryCount;
+import com.internship.bookverse.dto.response.YearCount;
 import com.internship.bookverse.entity.Book;
 import com.internship.bookverse.exception.BookNotFoundException;
 import com.internship.bookverse.exception.IsbnAlreadyExistsException;
@@ -17,6 +19,8 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -30,19 +34,7 @@ public class BookService {
     public Page<BookResponse> getAll(Pageable pageable, String category, Integer year) {
         log.debug("getAll: page={} size={} category={} year={}",
                 pageable.getPageNumber(), pageable.getPageSize(), category, year);
-
-        Page<Book> page;
-        if (category != null) {
-            page = bookRepository.findByCategory(category, pageable);
-        } else if (year != null) {
-            page = bookRepository.findByYear(year, pageable);
-        } else {
-            page = bookRepository.findAll(pageable);
-        }
-
-        log.debug("getAll returned {} results (total={})",
-                page.getContent().size(), page.getTotalElements());
-        return page.map(bookMapper::toResponse);
+        return bookRepository.findByFilters(category, year, pageable).map(bookMapper::toResponse);
     }
 
     @Cacheable(value = "bookById", key = "#id")
@@ -53,7 +45,19 @@ public class BookService {
         return bookMapper.toResponse(book);
     }
 
-    @CacheEvict(value = {"books", "bookSearch"}, allEntries = true)
+    @Cacheable(value = "categories")
+    public List<CategoryCount> getCategories() {
+        log.debug("getCategories");
+        return bookRepository.findDistinctCategories();
+    }
+
+    @Cacheable(value = "years")
+    public List<YearCount> getYears() {
+        log.debug("getYears");
+        return bookRepository.findDistinctYears();
+    }
+
+    @CacheEvict(value = {"books", "bookSearch", "bookById", "categories", "years"}, allEntries = true)
     @Transactional
     public BookResponse create(BookCreateRequest request) {
         log.info("create: title='{}' author='{}' isbn={}", request.getTitle(), request.getAuthor(), request.getIsbn());
@@ -64,7 +68,7 @@ public class BookService {
         return bookMapper.toResponse(saved);
     }
 
-    @CacheEvict(value = {"books", "bookSearch", "bookById"}, allEntries = true)
+    @CacheEvict(value = {"books", "bookSearch", "bookById", "categories", "years"}, allEntries = true)
     @Transactional
     public BookResponse update(Long id, BookUpdateRequest request) {
         log.info("update: id={} title='{}' author='{}'", id, request.getTitle(), request.getAuthor());
@@ -80,7 +84,7 @@ public class BookService {
         return bookMapper.toResponse(saved);
     }
 
-    @CacheEvict(value = {"books", "bookSearch", "bookById"}, allEntries = true)
+    @CacheEvict(value = {"books", "bookSearch", "bookById", "categories", "years"}, allEntries = true)
     @Transactional
     public void delete(Long id) {
         log.info("delete: id={}", id);
@@ -92,13 +96,10 @@ public class BookService {
         log.info("delete: soft-deleted id={}", id);
     }
 
-    @Cacheable(value = "bookSearch", key = "{#q, #category, #pageable.pageNumber, #pageable.pageSize, #pageable.sort}")
-    public Page<BookResponse> search(String q, String category, Pageable pageable) {
-        log.debug("search: q='{}' category={} page={}", q, category, pageable.getPageNumber());
-        Page<BookResponse> result = bookRepository.searchBooks(q, q, category, pageable)
-                .map(bookMapper::toResponse);
-        log.debug("search returned {} hits", result.getTotalElements());
-        return result;
+    @Cacheable(value = "bookSearch", key = "{#q, #category, #year, #pageable.pageNumber, #pageable.pageSize, #pageable.sort}")
+    public Page<BookResponse> search(String q, String category, Integer year, Pageable pageable) {
+        log.debug("search: q='{}' category={} year={} page={}", q, category, year, pageable.getPageNumber());
+        return bookRepository.searchBooks(q, q, category, year, pageable).map(bookMapper::toResponse);
     }
 
     @CacheEvict(value = {"books", "bookSearch", "bookById"}, allEntries = true)
