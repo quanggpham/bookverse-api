@@ -25,6 +25,19 @@ class BookCsvParserTest {
         assertThat(rec.author()).isEqualTo("Mark P. O. Morford");
         assertThat(rec.year()).isEqualTo(2002);
         assertThat(rec.publisher()).isEqualTo("Oxford University Press");
+        assertThat(rec.coverUrl()).isNull();
+    }
+
+    @Test
+    void parseLine_readsCoverUrlColumn() {
+        String line = "\"0195153448\";\"Classical Mythology\";\"Mark P. O. Morford\";\"2002\";\"Oxford University Press\""
+                + ";\"http://images.amazon.com/images/P/0195153448.01.MZZZZZZZ.jpg\""
+                + ";\"http://images.amazon.com/images/P/0195153448.01.LZZZZZZZ.jpg\"";
+
+        BookCsvRecord rec = parser.parseLine(line);
+
+        assertThat(rec).isNotNull();
+        assertThat(rec.coverUrl()).isEqualTo("http://images.amazon.com/images/P/0195153448.01.MZZZZZZZ.jpg");
     }
 
     @Test
@@ -60,6 +73,21 @@ class BookCsvParserTest {
         assertThat(parser.parseLine("\"1\";\"T\";\"A\";\"abcd\";\"P\"")).isNull();
         assertThat(parser.parseLine("\"1\";\"T\";\"A\";\"0\";\"P\"")).isNull();
         assertThat(parser.parseLine("\"1\";\"T\";\"A\";\"9999\";\"P\"")).isNull();
+    }
+
+    @Test
+    void parse_skipsHeaderAndReturnsRecords_withCoverUrl() {
+        String csv = "\"ISBN\";\"Book-Title\";\"Book-Author\";\"Year\";\"Publisher\";\"Image-URL-S\";\"Image-URL-M\";\"Image-URL-L\"\n"
+                + "\"1\";\"Book One\";\"Author One\";\"2000\";\"Pub One\";\"http://x/s.jpg\";\"http://x/m.jpg\";\"http://x/l.jpg\"\n"
+                + "\"2\";\"Book Two\";\"Author Two\";\"2001\";\"Pub Two\"";
+
+        InputStream in = new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8));
+
+        List<BookCsvRecord> records = parser.parse(in);
+
+        assertThat(records).hasSize(2);
+        assertThat(records.get(0).coverUrl()).isEqualTo("http://x/s.jpg");
+        assertThat(records.get(1).coverUrl()).isNull();
     }
 
     @Test

@@ -1,6 +1,6 @@
 # BookVerse 📚 — E-Book Management Platform
 
-[![Java](https://img.shields.io/badge/Java-17-%23ED8B00)](https://openjdk.org/)
+[![Java](https://img.shields.io/badge/Java-21-%23ED8B00)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-6DB33F)](https://spring.io/projects/spring-boot)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1)](https://www.postgresql.org/)
 [![Swagger](https://img.shields.io/badge/Swagger-OpenAPI-85EA2D)](https://swagger.io/)
@@ -8,18 +8,24 @@
 
 A production-ready REST API for managing electronic books — with full CRUD, intelligent cover image processing (auto-resize to 3 sizes + WebP conversion), full-text search, pagination, and enterprise-grade architecture.
 
-> **Stack:** Spring Boot 3 + Spring Data JPA + PostgreSQL/H2 + MapStruct + Thumbnailator + OpenAPI
+> **Stack:** Spring Boot 3 + Spring Data JPA + PostgreSQL/H2 + MapStruct + Thumbnailator + Caffeine Cache + OpenAPI
 
 ## ✨ Features
 
-### 📖 Book Management (CRUD)
+### 📖 API Endpoints Summary
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/books` | List with pagination, sorting, filtering |
-| `GET` | `/api/books/{id}` | Book details |
-| `POST` | `/api/books` | Create book + optional cover upload |
-| `PUT` | `/api/books/{id}` | Update book |
-| `DELETE` | `/api/books/{id}` | Delete book |
+| `GET` | `/api/books` | List books with pagination, sorting, category & year filtering |
+| `GET` | `/api/books/{id}` | Get book details |
+| `POST` | `/api/books` | Create book (supports optional cover image upload) |
+| `PUT` | `/api/books/{id}` | Update book details (supports optional cover upload) |
+| `DELETE` | `/api/books/{id}` | Soft-delete book (clears ISBN for reuse) |
+| `GET` | `/api/books/search` | Full-text search by title/author with filtering |
+| `GET` | `/api/books/{id}/cover` | Serve cover image file by size (`thumb`, `medium`, `large`) |
+| `PUT` | `/api/books/{id}/cover` | Update cover image for an existing book |
+| `POST` | `/api/books/bulk` | Bulk import books from CSV or Excel (`.xlsx`) |
+| `GET` | `/api/books/categories` | Get distinct categories with book counts |
+| `GET` | `/api/books/years` | Get distinct publication years with book counts |
 
 ### 🖼 Smart Cover Image Processing
 - **Auto-upload** — Supports JPG, PNG, WebP
@@ -29,13 +35,14 @@ A production-ready REST API for managing electronic books — with full CRUD, in
 
 ### 🔍 Search & Discovery
 - **Full-text search** — Search by title and author
-- **Filtering** — By category, year
-- **Sorting** — By title, year, rating
-- **Pagination** — Configurable page size
+- **Filtering** — By category, publication year
+- **Sorting** — By title, year, rating, createdAt
+- **Pagination** — Configurable page number & size
 
 ### 📋 Bulk Operations
-- **CSV/Excel Import** — Bulk upload books from spreadsheet
-- **Batch Image Upload** — Upload multiple covers at once
+- **CSV/Excel Import** — Bulk upload books from `.csv` or `.xlsx` files
+- **Row-level Error Reporting** — Continues import on row errors with detailed error feedback
+- **ISBN Collision Guard** — Prevents duplicate ISBNs during bulk import
 
 ### 🏗 Architecture
 
@@ -43,9 +50,9 @@ A production-ready REST API for managing electronic books — with full CRUD, in
 ┌─────────────────────┐     ┌──────────────────┐     ┌─────────────────┐
 │   Controller Layer  │────►│   Service Layer   │────►│  Repository     │
 │                     │     │                   │     │  Layer (JPA)    │
-│  BookController     │     │  BookService      │     │                 │
-│  SearchController   │     │  ImageService     │     │  BookRepository │
-│  CoverController    │     │  BulkImportService│     │                 │
+│   BookController    │     │  BookService      │     │                 │
+│                     │     │  ImageService     │     │  BookRepository │
+│                     │     │  BulkImportService│     │                 │
 └─────────────────────┘     └───┬───────────────┘     └────────┬────────┘
                                 │                              │
                           ┌─────▼─────┐                 ┌──────▼──────┐
@@ -64,7 +71,7 @@ A production-ready REST API for managing electronic books — with full CRUD, in
 
 ### Prerequisites
 
-- Java 17+
+- Java 21+
 - Maven 3.9+
 - PostgreSQL 16 (optional, H2 for development)
 
@@ -94,9 +101,10 @@ java -jar target/bookverse-1.0.0.jar
 
 ### API Documentation
 
-- **Frontend developer guide** (full context, data model, every endpoint, error codes, gotchas): [`docs/API.md`](docs/API.md)
 - **Swagger UI** (interactive): [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) once running
+- **OpenAPI Specification**: `http://localhost:8080/v3/api-docs`
 - **Postman collection** (ready-to-run with sample data): [`postman/README.md`](postman/README.md)
+- **Assignment Spec**: [`docs/assignment.md`](docs/assignment.md)
 
 ### Docker
 
@@ -116,29 +124,36 @@ mvn test
 src/
 ├── main/java/com/internship/bookverse/
 │   ├── BookVerseApplication.java       # Entry point
-│   ├── controller/
-│   │   ├── BookController.java         # CRUD endpoints
-│   │   ├── CoverController.java        # Image serve endpoints
-│   │   └── SearchController.java       # Search endpoints
-│   ├── service/
-│   │   ├── BookService.java            # Business logic
-│   │   ├── ImageService.java           # Image processing
-│   │   └── BulkImportService.java      # CSV/Excel import
-│   ├── repository/
-│   │   └── BookRepository.java         # JPA data access
-│   ├── model/entity/
-│   │   └── Book.java                   # JPA entity
-│   ├── model/dto/
-│   │   └── BookDTO.java                # Data transfer object
-│   ├── mapper/
-│   │   └── BookMapper.java             # MapStruct mapper
 │   ├── config/
-│   │   ├── CacheConfig.java            # Caching configuration
-│   │   └── SwaggerConfig.java          # OpenAPI configuration
-│   └── validation/
-│       └── BookValidator.java          # Input validation
+│   │   ├── BookSeeder.java             # Database startup seeder
+│   │   ├── CacheConfig.java            # Caffeine cache configuration
+│   │   ├── CorsConfig.java             # CORS configuration
+│   │   └── OpenApiConfig.java          # OpenAPI / Swagger configuration
+│   ├── controller/
+│   │   └── BookController.java         # REST endpoints (CRUD, search, cover, bulk)
+│   ├── dto/
+│   │   ├── ErrorResponse.java          # Standard error DTO
+│   │   ├── ValidationErrorResponse.java # Form validation error DTO
+│   │   ├── request/                    # BookCreateRequest, BookUpdateRequest
+│   │   └── response/                   # BookResponse, BulkImportResult, CategoryCount, YearCount
+│   ├── entity/
+│   │   └── Book.java                   # JPA entity with soft delete
+│   ├── exception/
+│   │   └── GlobalExceptionHandler.java # Centralized exception handling
+│   ├── mapper/
+│   │   └── BookMapper.java             # MapStruct DTO ↔ Entity mapper
+│   ├── repository/
+│   │   └── BookRepository.java         # Spring Data JPA repository
+│   └── service/
+│       ├── BookService.java            # Business logic & caching
+│       ├── ImageService.java           # Cover image resize & WebP conversion
+│       ├── BookCsvParser.java          # CSV parser helper
+│       └── BulkImportService.java      # CSV/Excel bulk import service
 └── test/java/com/internship/bookverse/
-    └── ...                             # Service layer tests
+    ├── config/                         # Seeder & image probe tests
+    ├── controller/                     # Controller layer tests
+    ├── integration/                    # E2E & integration tests
+    └── service/                        # Service layer unit tests
 ```
 
 ## 🛠 Tech Stack
@@ -158,3 +173,4 @@ src/
 ---
 
 *Built as part of a backend engineering internship program — demonstrating enterprise Spring Boot development practices.*
+

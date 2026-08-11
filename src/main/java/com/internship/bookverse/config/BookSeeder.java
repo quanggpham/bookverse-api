@@ -4,15 +4,22 @@ import com.internship.bookverse.entity.Book;
 import com.internship.bookverse.repository.BookRepository;
 import com.internship.bookverse.service.BookCsvParser;
 import com.internship.bookverse.service.BookCsvRecord;
+import com.internship.bookverse.service.ImageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -40,6 +47,11 @@ public class BookSeeder implements CommandLineRunner {
 
     private final BookRepository bookRepository;
     private final BookCsvParser parser;
+    private final ImageService imageService;
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .build();
 
     @Value("${app.seed.csv-path:data/books.csv}")
     private String csvPath;
@@ -69,9 +81,22 @@ public class BookSeeder implements CommandLineRunner {
         List<BookCsvRecord> deduped = dedupeByIsbn(records);
         log.info("seed: parsed {} rows, {} unique after ISBN dedupe", records.size(), deduped.size());
 
-        List<Book> books = pickRandom(deduped, SEED_COUNT);
+        List<Picked> picked = pickRandom(deduped, SEED_COUNT);
+        List<Book> books = picked.stream().map(Picked::book).toList();
+        // Save first so each book has an id (ImageService.upload keys files by book id),
+        // then fetch covers and persist the cover paths.
         bookRepository.saveAll(books);
-        log.info("seed: inserted {} books from {}", books.size(), csvPath);
+        int withCover = 0;
+        for (Picked p : picked) {
+            if (p.record().coverUrl() != null && !p.record().coverUrl().isBlank()) {
+                if (downloadCover(p.book(), p.record().coverUrl())) {
+                    withCover++;
+                }
+            }
+        }
+        bookRepository.saveAll(books);
+        log.info("seed: inserted {} books from {} ({} with covers)",
+                books.size(), csvPath, withCover);
     }
 
     private List<BookCsvRecord> readRecords() {
@@ -100,16 +125,16 @@ public class BookSeeder implements CommandLineRunner {
         return deduped;
     }
 
-    private List<Book> pickRandom(List<BookCsvRecord> pool, int count) {
+    private List<Picked> pickRandom(List<BookCsvRecord> pool, int count) {
         List<BookCsvRecord> shuffled = new ArrayList<>(pool);
         java.util.Collections.shuffle(shuffled, random);
         int take = Math.min(count, shuffled.size());
 
-        List<Book> books = new ArrayList<>(take);
+        List<Picked> picked = new ArrayList<>(take);
         for (int i = 0; i < take; i++) {
-            books.add(toBook(shuffled.get(i)));
+            picked.add(new Picked(toBook(shuffled.get(i)), shuffled.get(i)));
         }
-        return books;
+        return picked;
     }
 
     private Book toBook(BookCsvRecord rec) {
@@ -126,5 +151,93 @@ public class BookSeeder implements CommandLineRunner {
                 .description("A sample book: " + rec.title() + " by " + rec.author()
                         + " (published " + rec.year() + ").")
                 .build();
+    }
+
+    /** A picked book bound to its CSV record (for its cover URL). */
+    private record Picked(Book book, BookCsvRecord record) {
+    }
+
+    /**
+     * Downloads the CSV cover URL and pipes it through {@link ImageService},
+     * which resizes and converts it to the three standard WebP sizes. Failures
+     * (unreachable host, non-image response, ...) are logged and leave the
+     * book without a cover rather than aborting the seed.
+     */
+    /** Downloads one cover; returns {@code true} when the book ended up with a cover. */
+    private boolean downloadCover(Book book, String coverUrl) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(coverUrl))
+                    .header("User-Agent",
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                                    + "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
+                    .GET()
+                    .build();
+            HttpResponse<byte[]> response = httpClient.send(request,
+                    HttpResponse.BodyHandlers.ofByteArray());
+            if (response.statusCode() != 200 || response.body().length == 0) {
+                log.debug("seed: cover download failed for '{}' ({}): HTTP {}",
+                        book.getTitle(), coverUrl, response.statusCode());
+                return false;
+            }
+
+            MultipartFile multipart = new ByteArrayMultipartFile("cover", "cover.jpg", "image/jpeg",
+                    response.body());
+            String coverPath = imageService.upload(multipart, book.getId());
+            if (coverPath != null) {
+                book.setCoverPath(coverPath);
+                return true;
+            }
+        } catch (Exception e) {
+            log.debug("seed: cover download failed for '{}' ({}): {}", book.getTitle(),
+                    coverUrl, e.getMessage());
+        }
+        return false;
+    }
+
+    /** Minimal MultipartFile backed by an in-memory byte array. */
+    private record ByteArrayMultipartFile(
+            String name, String originalFilename, String contentType, byte[] content)
+            implements MultipartFile {
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public String getOriginalFilename() {
+            return originalFilename;
+        }
+
+        @Override
+        public String getContentType() {
+            return contentType;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return content.length == 0;
+        }
+
+        @Override
+        public long getSize() {
+            return content.length;
+        }
+
+        @Override
+        public byte[] getBytes() {
+            return content;
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return new ByteArrayInputStream(content);
+        }
+
+        @Override
+        public void transferTo(java.io.File dest) throws IOException, IllegalStateException {
+            Files.write(dest.toPath(), content);
+        }
     }
 }

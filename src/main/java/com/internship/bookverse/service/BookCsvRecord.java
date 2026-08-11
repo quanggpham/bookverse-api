@@ -8,6 +8,7 @@ package com.internship.bookverse.service;
  * @param author     book author
  * @param year       publication year
  * @param publisher  publisher — mapped to the book's category
+ * @param coverUrl   remote cover image URL (Image-URL-M column, nullable when blank)
  */
-public record BookCsvRecord(String isbn, String title, String author, Integer year, String publisher) {
+public record BookCsvRecord(String isbn, String title, String author, Integer year, String publisher, String coverUrl) {
 }
