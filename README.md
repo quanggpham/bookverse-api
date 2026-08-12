@@ -1,18 +1,18 @@
-# BookVerse 📚 — E-Book Management Platform
+# BookVerse — E-Book Management Platform
 
 [![Java](https://img.shields.io/badge/Java-21-%23ED8B00)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-6DB33F)](https://spring.io/projects/spring-boot)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1)](https://www.postgresql.org/)
 [![Swagger](https://img.shields.io/badge/Swagger-OpenAPI-85EA2D)](https://swagger.io/)
-[![Docker](https://img.shields.io/badge/Docker-ready-2496ED)](https://www.docker.com/)
 
 A production-ready REST API for managing electronic books — with full CRUD, intelligent cover image processing (auto-resize to 3 sizes + WebP conversion), full-text search, pagination, and enterprise-grade architecture.
 
 > **Stack:** Spring Boot 3 + Spring Data JPA + PostgreSQL/H2 + MapStruct + Thumbnailator + Caffeine Cache + OpenAPI
 
-## ✨ Features
+## Features
 
-### 📖 API Endpoints Summary
+### API Endpoints Summary
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/books` | List books with pagination, sorting, category & year filtering |
@@ -27,24 +27,27 @@ A production-ready REST API for managing electronic books — with full CRUD, in
 | `GET` | `/api/books/categories` | Get distinct categories with book counts |
 | `GET` | `/api/books/years` | Get distinct publication years with book counts |
 
-### 🖼 Smart Cover Image Processing
+### Smart Cover Image Processing
+
 - **Auto-upload** — Supports JPG, PNG, WebP
 - **3 Resolutions** — Thumbnail (200px), Medium (500px), Large (1200px)
 - **WebP Conversion** — Automatic format optimization
 - **Organized Storage** — `uploads/covers/yyyy/MM/id-size.webp`
 
-### 🔍 Search & Discovery
+### Search & Discovery
+
 - **Full-text search** — Search by title and author
 - **Filtering** — By category, publication year
 - **Sorting** — By title, year, rating, createdAt
 - **Pagination** — Configurable page number & size
 
-### 📋 Bulk Operations
+### Bulk Operations
+
 - **CSV/Excel Import** — Bulk upload books from `.csv` or `.xlsx` files
 - **Row-level Error Reporting** — Continues import on row errors with detailed error feedback
 - **ISBN Collision Guard** — Prevents duplicate ISBNs during bulk import
 
-### 🏗 Architecture
+### Architecture
 
 ```
 ┌─────────────────────┐     ┌──────────────────┐     ┌─────────────────┐
@@ -67,7 +70,7 @@ A production-ready REST API for managing electronic books — with full CRUD, in
                           └─────────────────┘
 ```
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -106,19 +109,13 @@ java -jar target/bookverse-1.0.0.jar
 - **Postman collection** (ready-to-run with sample data): [`postman/README.md`](postman/README.md)
 - **Assignment Spec**: [`docs/assignment.md`](docs/assignment.md)
 
-### Docker
-
-```bash
-docker compose up --build
-```
-
-## 🧪 Testing
+## Testing
 
 ```bash
 mvn test
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 src/
@@ -156,7 +153,7 @@ src/
     └── service/                        # Service layer unit tests
 ```
 
-## 🛠 Tech Stack
+## Tech Stack
 
 | Technology | Purpose |
 |------------|---------|
@@ -168,9 +165,7 @@ src/
 | Springdoc OpenAPI | Swagger documentation |
 | Apache POI | CSV/Excel parsing |
 | Caffeine | Response caching |
-| Docker | Containerization |
 
 ---
 
 *Built as part of a backend engineering internship program — demonstrating enterprise Spring Boot development practices.*
-
