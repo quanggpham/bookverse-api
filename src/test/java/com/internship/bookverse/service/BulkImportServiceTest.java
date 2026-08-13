@@ -26,6 +26,9 @@ class BulkImportServiceTest {
     @Mock
     private BookRepository bookRepository;
 
+    @Mock
+    private BookService bookService;
+
     @InjectMocks
     private BulkImportService bulkImportService;
 
@@ -82,5 +85,42 @@ class BulkImportServiceTest {
         BulkImportResult result = bulkImportService.importBooks(file);
 
         assertThat(result.getTotalRows()).isEqualTo(0);
+    }
+
+    @Test
+    void importBooks_shouldParseQuotedCommaInDescription() {
+        // Comma inside a quoted description must not split the field.
+        String csv = "title,author,isbn,description\n"
+                + "Book One,Author One,978-1,\"Hello, world\"";
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "books.csv", "text/csv", csv.getBytes());
+
+        BulkImportResult result = bulkImportService.importBooks(file);
+
+        assertThat(result.getSuccessCount()).isEqualTo(1);
+        assertThat(result.getFailedCount()).isEqualTo(0);
+    }
+
+    @Test
+    void importBooks_shouldReportDuplicateIsbnRow_afterInvalidRow() {
+        // Row 2 is invalid (blank title); the duplicate ISBN at row 4 must
+        // still be reported with row number 4 (its actual file row), not 3.
+        // File: header(1), invalid(2), first-DUP(3), second-DUP(4)
+        String csv = "title,author,isbn\n"
+                + ",Author Skip,978-SKIP\n"
+                + "Book One,Author One,978-DUP\n"
+                + "Book Two,Author Two,978-DUP";
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "books.csv", "text/csv", csv.getBytes());
+
+        BulkImportResult result = bulkImportService.importBooks(file);
+
+        assertThat(result.getTotalRows()).isEqualTo(3);
+        assertThat(result.getSuccessCount()).isEqualTo(1);
+        assertThat(result.getFailedCount()).isEqualTo(2);
+        assertThat(result.getErrors()).extracting("row").containsExactly(2, 4);
+        assertThat(result.getErrors().get(1).getRow()).isEqualTo(4);
     }
 }

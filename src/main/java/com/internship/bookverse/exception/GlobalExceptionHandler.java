@@ -2,12 +2,14 @@ package com.internship.bookverse.exception;
 
 import com.internship.bookverse.dto.ErrorResponse;
 import com.internship.bookverse.dto.ValidationErrorResponse;
+import jakarta.validation.ConstraintViolationException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
@@ -117,6 +119,41 @@ public class GlobalExceptionHandler {
                         .timestamp(LocalDateTime.now())
                         .path(request.getRequestURI())
                         .details(details)
+                        .build());
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ValidationErrorResponse> handleConstraintViolation(
+            ConstraintViolationException ex, HttpServletRequest request) {
+        List<ValidationErrorResponse.FieldError> details = ex.getConstraintViolations()
+                .stream()
+                .map(violation -> new ValidationErrorResponse.FieldError(
+                        violation.getPropertyPath().toString(), violation.getMessage()))
+                .toList();
+        log.warn("400 VALIDATION: {} {} — {} parameter(s) invalid",
+                request.getMethod(), request.getRequestURI(), details.size());
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ValidationErrorResponse.builder()
+                        .code("VALIDATION_ERROR")
+                        .message("Validation failed")
+                        .timestamp(LocalDateTime.now())
+                        .path(request.getRequestURI())
+                        .details(details)
+                        .build());
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        log.warn("400 BAD_REQUEST: {} {} — invalid parameter {}", request.getMethod(), request.getRequestURI(),
+                ex.getName());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.builder()
+                        .code("BAD_REQUEST")
+                        .message("Invalid value for parameter: " + ex.getName())
+                        .timestamp(LocalDateTime.now())
+                        .path(request.getRequestURI())
                         .build());
     }
 

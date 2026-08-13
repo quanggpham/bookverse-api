@@ -1,12 +1,17 @@
 package com.internship.bookverse.integration;
 
+import com.internship.bookverse.dto.response.BookResponse;
 import com.internship.bookverse.dto.response.BulkImportResult;
 import com.internship.bookverse.repository.BookRepository;
+import com.internship.bookverse.service.BookService;
 import com.internship.bookverse.service.BulkImportService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.mock.web.MockMultipartFile;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -16,6 +21,9 @@ class BulkImportIntegrationTest {
 
     @Autowired
     private BulkImportService bulkImportService;
+
+    @Autowired
+    private BookService bookService;
 
     @Autowired
     private BookRepository bookRepository;
@@ -80,5 +88,39 @@ class BulkImportIntegrationTest {
         assertThat(result.getSuccessCount()).isEqualTo(2);
         assertThat(result.getFailedCount()).isEqualTo(0);
         assertThat(bookRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    void importBooks_shouldEvictCache_afterSuccessfulImport() {
+        // Seed the database so the cache can be populated
+        String csv = "title,author,isbn\n"
+                + "Seed Book,Seed Author,978-SEED";
+
+        MockMultipartFile seedFile = new MockMultipartFile(
+                "file", "seed.csv", "text/csv", csv.getBytes());
+        bulkImportService.importBooks(seedFile);
+
+        // Populate the books cache by calling getAll
+        Page<BookResponse> before = bookService.getAll(
+                PageRequest.of(0, 20, Sort.by(Sort.Order.desc("createdAt"))),
+                null, null);
+        assertThat(before.getTotalElements()).isEqualTo(1);
+
+        // Import new books
+        String csv2 = "title,author,isbn\n"
+                + "New Book,New Author,978-NEW-1";
+
+        MockMultipartFile importFile = new MockMultipartFile(
+                "file", "import.csv", "text/csv", csv2.getBytes());
+        BulkImportResult result = bulkImportService.importBooks(importFile);
+
+        assertThat(result.getSuccessCount()).isEqualTo(1);
+
+        // The cache should be evicted, so a fresh getAll reflects the new data
+        // without needing to clear the cache manually
+        Page<BookResponse> after = bookService.getAll(
+                PageRequest.of(0, 20, Sort.by(Sort.Order.desc("createdAt"))),
+                null, null);
+        assertThat(after.getTotalElements()).isEqualTo(2);
     }
 }

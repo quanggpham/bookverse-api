@@ -14,9 +14,8 @@ import java.util.List;
 /**
  * Parser for the Book-Crossing CSV dataset ({@code data/books.csv}).
  *
- * <p>The file is {@code ;}-delimited with double-quoted fields. The identity
- * columns (ISBN, title, author, year, publisher) and the medium cover image
- * URL (Image-URL-M) are read; the remaining image columns are ignored. HTML
+ * <p>The file is {@code ;}-delimited with double-quoted fields. Only the five
+ * identity-ish columns are read: ISBN, title, author, year, publisher. HTML
  * entities such as {@code &amp;} are unescaped. Malformed rows (wrong column
  * count, blank title, invalid year) are skipped.
  */
@@ -24,13 +23,12 @@ import java.util.List;
 @Component
 public class BookCsvParser {
 
-    private static final int MIN_COLUMN_COUNT = 5; // identity columns we require; full rows have 8
+    private static final int MIN_COLUMN_COUNT = 5; // identity columns we consume; full rows have 8
     private static final int IDX_ISBN = 0;
     private static final int IDX_TITLE = 1;
     private static final int IDX_AUTHOR = 2;
     private static final int IDX_YEAR = 3;
     private static final int IDX_PUBLISHER = 4;
-    private static final int IDX_COVER_URL = 5; // Image-URL-S, optional (smallest download)
 
     /**
      * Parses an entire CSV stream, skipping the header and malformed rows.
@@ -91,15 +89,12 @@ public class BookCsvParser {
             return null;
         }
 
-        String coverUrl = fields.length > IDX_COVER_URL ? unquote(fields[IDX_COVER_URL]) : null;
-
         return new BookCsvRecord(
                 unquote(fields[IDX_ISBN]),
                 title,
                 author,
                 year,
-                unquote(fields[IDX_PUBLISHER]),
-                coverUrl);
+                unquote(fields[IDX_PUBLISHER]));
     }
 
     /**

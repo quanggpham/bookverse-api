@@ -10,26 +10,36 @@ import com.internship.bookverse.service.BookService;
 import com.internship.bookverse.service.BulkImportService;
 import com.internship.bookverse.service.ImageService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/books")
 @RequiredArgsConstructor
 @Slf4j
+@Validated
 public class BookController {
+
+    private static final Set<String> ALLOWED_SORT_PROPERTIES =
+            Set.of("title", "year", "rating", "createdAt", "updatedAt");
 
     private final BookService bookService;
     private final ImageService imageService;
@@ -37,9 +47,13 @@ public class BookController {
 
     @GetMapping
     public ResponseEntity<Page<BookResponse>> getAll(
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
+            @RequestParam(defaultValue = "0") @Min(value = 0, message = "Page must be zero or greater") int page,
+            @RequestParam(defaultValue = "20") @Min(value = 1, message = "Size must be at least 1")
+            @Max(value = 100, message = "Size must not exceed 100") int size,
+            @RequestParam(required = false) List<String> sort,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) Integer year) {
+        Pageable pageable = createPageable(page, size, sort, Sort.by(Sort.Order.desc("createdAt")));
         log.info("GET /api/books?page={}&size={}&category={}&year={}",
                 pageable.getPageNumber(), pageable.getPageSize(), category, year);
         return ResponseEntity.ok(bookService.getAll(pageable, category, year));
@@ -83,10 +97,17 @@ public class BookController {
             @RequestPart(value = "cover", required = false) MultipartFile cover) {
         log.info("PUT /api/books/{} title='{}' hasCover={}", id, request.getTitle(),
                 cover != null && !cover.isEmpty());
+        // Capture old cover path for compensating cleanup after replacement
+        String oldCoverPath = bookService.getById(id).getCoverPath();
         BookResponse response = bookService.update(id, request);
         if (cover != null && !cover.isEmpty()) {
             String coverPath = imageService.upload(cover, id);
             response = bookService.updateCoverPath(id, coverPath);
+            // DB op succeeded — clean up the previous cover files
+            if (oldCoverPath != null && !oldCoverPath.equals(coverPath)) {
+                imageService.deleteCover(oldCoverPath);
+                log.info("update: cleaned up old cover for id={} path={}", id, oldCoverPath);
+            }
         }
         return ResponseEntity.ok(response);
     }
@@ -94,18 +115,55 @@ public class BookController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         log.info("DELETE /api/books/{}", id);
+        // Fetch cover path before deletion for compensating cleanup
+        String coverPath = null;
+        try {
+            BookResponse book = bookService.getById(id);
+            coverPath = book.getCoverPath();
+        } catch (Exception e) {
+            log.debug("delete: could not fetch cover path for id={}: {}", id, e.getMessage());
+        }
         bookService.delete(id);
+        if (coverPath != null) {
+            imageService.deleteCover(coverPath);
+            log.info("delete: cleaned up cover for id={}", id);
+        }
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/search")
     public ResponseEntity<Page<BookResponse>> search(
-            @RequestParam String q,
+            @RequestParam @NotBlank(message = "Search query must not be blank") String q,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) Integer year,
-            @PageableDefault(size = 20) Pageable pageable) {
+            @RequestParam(defaultValue = "0") @Min(value = 0, message = "Page must be zero or greater") int page,
+            @RequestParam(defaultValue = "20") @Min(value = 1, message = "Size must be at least 1")
+            @Max(value = 100, message = "Size must not exceed 100") int size,
+            @RequestParam(required = false) List<String> sort) {
+        Pageable pageable = createPageable(page, size, sort, Sort.unsorted());
         log.info("GET /api/books/search?q='{}'&category={}&year={}&page={}", q, category, year, pageable.getPageNumber());
         return ResponseEntity.ok(bookService.search(q, category, year, pageable));
+    }
+
+    private Pageable createPageable(int page, int size, List<String> sortParameters, Sort defaultSort) {
+        if (sortParameters == null || sortParameters.isEmpty()) {
+            return PageRequest.of(page, size, defaultSort);
+        }
+
+        List<Sort.Order> orders = new ArrayList<>();
+        for (String sortParameter : sortParameters) {
+            String[] parts = sortParameter.split(",", -1);
+            String property = parts[0].trim();
+            if (parts.length > 2 || property.isEmpty() || !ALLOWED_SORT_PROPERTIES.contains(property)) {
+                throw new IllegalArgumentException("Unsupported sort property: " + property);
+            }
+
+            Sort.Direction direction = parts.length == 2
+                    ? Sort.Direction.fromString(parts[1].trim())
+                    : Sort.Direction.ASC;
+            orders.add(new Sort.Order(direction, property));
+        }
+        return PageRequest.of(page, size, Sort.by(orders));
     }
 
     @GetMapping("/categories")

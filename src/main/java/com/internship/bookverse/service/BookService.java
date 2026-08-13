@@ -102,6 +102,15 @@ public class BookService {
         return bookRepository.searchBooks(q, q, category, year, pageable).map(bookMapper::toResponse);
     }
 
+    /**
+     * Evicts all read caches. Called by bulk import after a successful save so
+     * subsequent list/detail/search/categories/years reads see fresh data.
+     */
+    @CacheEvict(value = {"books", "bookSearch", "bookById", "categories", "years"}, allEntries = true)
+    public void evictReadCaches() {
+        log.info("evictReadCaches: cleared books, bookSearch, bookById, categories, years caches");
+    }
+
     @CacheEvict(value = {"books", "bookSearch", "bookById"}, allEntries = true)
     @Transactional
     public BookResponse updateCoverPath(Long id, String coverPath) {

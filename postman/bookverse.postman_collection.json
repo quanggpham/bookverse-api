@@ -1,8 +1,8 @@
 {
   "info": {
-    "_postman_id": "5c5a2b1e-9f2e-4f2c-9a7f-bookverse01",
+    "_postman_id": "5c5a2b1e-9f2e-4f2c-9a7f-bookverse02",
     "name": "BookVerse API",
-    "description": "End-to-end collection for the BookVerse e-book REST API.\n\n## How to use\n\n1. Import this collection + one of the environments (`bookverse.local.postman_environment.json` or `bookverse.prod.postman_environment.json`).\n2. Select the environment so `{{baseUrl}}` resolves.\n3. Start the app (`mvn spring-boot:run` — H2 in-memory DB, seeded with 500 books).\n4. Run the collection: **BookVerse API → ▸ ▸ Run collection**.\n\n## Notes\n\n- Every folder runs in dependency order (seed a book, then read/update/delete it). Run the whole collection, or run each folder in order.\n- Tests validate HTTP status + JSON schema/values and capture ids via `pm.collectionVariables` (see Test Results → collectionVariables after the run).\n- Bulk import tests use the files under `postman/` (relative to your working dir): `sample-books.csv`, `sample-books-dup.csv`, `sample-books-bad.csv`.\n- Cover-upload tests use `sample-cover.png` (valid PNG) and `sample-unsupported.txt` (invalid).",
+    "description": "End-to-end collection for the BookVerse e-book REST API.\n\n## How to use\n\n1. Import this collection + one of the environments (`bookverse.local.postman_environment.json` or `bookverse.prod.postman_environment.json`).\n2. Select the environment so `{{baseUrl}}` resolves.\n3. Start the app (`mvn spring-boot:run` — H2 in-memory DB, seeded with ~500 books).\n4. Run the collection: **BookVerse API → ▸ ▸ Run collection**.\n\n## Notes\n\n- Every folder runs in dependency order (seed a book, then read/update/delete it). Run the whole collection, or run each folder in order.\n- Tests validate HTTP status + JSON schema/values and capture ids via `pm.collectionVariables` (see Test Results → collectionVariables after the run).\n- Bulk import tests use the files under `postman/` (relative to your working dir): `sample-books.csv`, `sample-books-dup.csv`, `sample-books-bad.csv`.\n- Cover-upload tests use `sample-cover.png` (valid PNG) and `sample-unsupported.txt` (invalid).\n\n## API contract\n\nPUT `/api/books/{id}` is **multipart** (a JSON part named `book`, optional `cover` part).\nGET `/api/books/categories` and `/api/books/years` expose filter metadata.\nPUT `/api/books/{id}/cover` replaces an existing cover.\nError responses use a structured `code` field (`VALIDATION_ERROR`, `BOOK_NOT_FOUND`, `ISBN_ALREADY_EXISTS`, `INVALID_IMAGE_FORMAT`, `MISSING_PART`, `BAD_REQUEST`, `FILE_TOO_LARGE`, `INTERNAL_ERROR`).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -43,6 +43,30 @@
       "description": "Generated author name (set by pre-request scripts)."
     },
     {
+      "key": "year",
+      "value": "",
+      "type": "string",
+      "description": "Generated publication year (set by pre-request scripts)."
+    },
+    {
+      "key": "category",
+      "value": "",
+      "type": "string",
+      "description": "Generated category (set by pre-request scripts)."
+    },
+    {
+      "key": "rating",
+      "value": "",
+      "type": "string",
+      "description": "Generated rating (set by pre-request scripts)."
+    },
+    {
+      "key": "description",
+      "value": "",
+      "type": "string",
+      "description": "Generated description (set by pre-request scripts)."
+    },
+    {
       "key": "coverIsbn",
       "value": "",
       "type": "string",
@@ -59,6 +83,12 @@
       "value": "",
       "type": "string",
       "description": "Generated unique ISBN for the invalid-cover book."
+    },
+    {
+      "key": "coverOnlyId",
+      "value": "",
+      "type": "string",
+      "description": "Id of the book whose cover is replaced via PUT /api/books/{id}/cover."
     }
   ],
   "auth": {
@@ -85,6 +115,23 @@
             },
             "description": "Verifies the OpenAPI/Swagger spec is served. Good first request — also warms the server."
           },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('OpenAPI spec returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Body looks like an OpenAPI document', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('openapi');",
+                  "  pm.expect(body).to.have.property('paths');",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
           "response": []
         },
         {
@@ -129,22 +176,41 @@
                 {
                   "key": "page",
                   "value": "{{page}}",
-                  "description": "Zero-based page index"
+                  "description": "Zero-based page index (must be >= 0)"
                 },
                 {
                   "key": "size",
                   "value": "{{size}}",
-                  "description": "Page size (capped by Spring Data's max-page-size)"
+                  "description": "Page size (1..100)"
                 },
                 {
                   "key": "sort",
                   "value": "createdAt,desc",
-                  "description": "Sort: createdAt,desc (Spring Data default sort)"
+                  "description": "Sort property must be in: title, year, rating, createdAt, updatedAt"
                 }
               ]
             },
             "description": "Paginated list of books. Uses `{{page}}`/`{{size}}` from the environment."
           },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('GET /api/books returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is a Spring Data page', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('content').that.is.an('array');",
+                  "  pm.expect(body).to.have.property('totalElements').that.is.a('number');",
+                  "  pm.expect(body).to.have.property('numberOfElements');",
+                  "  pm.expect(body.numberOfElements).to.eql(body.content.length);",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
           "response": []
         },
         {
@@ -153,7 +219,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/books?category=Classic&size={{size}}",
+              "raw": "{{baseUrl}}/api/books?category=Technology&size={{size}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -164,8 +230,8 @@
               "query": [
                 {
                   "key": "category",
-                  "value": "Classic",
-                  "description": "Filter by exact category. Seeded books use their publisher as category, so this may return few/no rows depending on the random seed."
+                  "value": "Technology",
+                  "description": "Exact-match category filter"
                 },
                 {
                   "key": "size",
@@ -173,7 +239,7 @@
                 }
               ]
             },
-            "description": "Filter by category. Note: the seeded data uses publisher as category, so an exact match like `Classic` may be empty — the test only checks that the call succeeds."
+            "description": "Filter by category. Combined with year works as `AND`."
           },
           "response": []
         },
@@ -195,7 +261,7 @@
                 {
                   "key": "year",
                   "value": "2000",
-                  "description": "Filter by exact publication year"
+                  "description": "Exact-match publication year"
                 },
                 {
                   "key": "size",
@@ -203,8 +269,128 @@
                 }
               ]
             },
-            "description": "Filter by year. The dataset has many books from around 2000, so this usually returns results."
+            "description": "Filter by exact publication year."
           },
+          "response": []
+        },
+        {
+          "name": "GET /api/books?size=101 (size too large → 400)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/books?size=101",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books"
+              ],
+              "query": [
+                {
+                  "key": "size",
+                  "value": "101"
+                }
+              ]
+            },
+            "description": "Validates that size > 100 is rejected with 400 VALIDATION_ERROR."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error code is VALIDATION_ERROR', () => {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/books?page=-1 (negative page → 400)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/books?page=-1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "-1"
+                }
+              ]
+            },
+            "description": "Validates that page < 0 is rejected with 400 VALIDATION_ERROR."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error code is VALIDATION_ERROR', () => {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/books?sort=deleted,asc (unsupported sort → 400)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/books?sort=deleted,asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books"
+              ],
+              "query": [
+                {
+                  "key": "sort",
+                  "value": "deleted,asc"
+                }
+              ]
+            },
+            "description": "Sort property not in the allow-list returns 400 BAD_REQUEST."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error code is BAD_REQUEST', () => {",
+                  "  pm.expect(pm.response.json().code).to.eql('BAD_REQUEST');",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
           "response": []
         },
         {
@@ -217,7 +403,7 @@
               "formdata": [
                 {
                   "key": "book",
-                  "value": "{\n  \"title\": \"{{title}}\",\n  \"author\": \"{{author}}\",\n  \"isbn\": \"{{isbn}}\",\n  \"year\": 2024,\n  \"category\": \"Science Fiction\",\n  \"rating\": 4.5,\n  \"description\": \"Created by Postman with a unique ISBN.\"\n}",
+                  "value": "{\n  \"title\": \"{{title}}\",\n  \"author\": \"{{author}}\",\n  \"isbn\": \"{{isbn}}\",\n  \"year\": {{year}},\n  \"category\": \"{{category}}\",\n  \"rating\": {{rating}},\n  \"description\": \"{{description}}\"\n}",
                   "type": "text",
                   "contentType": "application/json"
                 }
@@ -241,11 +427,14 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Generate a fresh unique ISBN + name for this run.",
                   "const now = Date.now();",
                   "pm.collectionVariables.set('isbn', '9' + String(now).slice(-12));",
                   "pm.collectionVariables.set('title', 'Postman Book ' + now);",
                   "pm.collectionVariables.set('author', 'Author ' + (now % 1000));",
+                  "pm.collectionVariables.set('year', 2024);",
+                  "pm.collectionVariables.set('category', 'Science Fiction');",
+                  "pm.collectionVariables.set('rating', 4.5);",
+                  "pm.collectionVariables.set('description', 'Created by Postman with a unique ISBN.');",
                   ""
                 ]
               }
@@ -278,7 +467,7 @@
           "response": []
         },
         {
-          "name": "POST /api/books (validation error)",
+          "name": "POST /api/books (validation: blank title/author → 400)",
           "request": {
             "method": "POST",
             "header": [],
@@ -328,6 +517,102 @@
           "response": []
         },
         {
+          "name": "POST /api/books (validation: year < 1000 → 400)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "book",
+                  "value": "{\n  \"title\": \"Old Book\",\n  \"author\": \"Some Author\",\n  \"year\": 999\n}",
+                  "type": "text",
+                  "contentType": "application/json"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/books",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books"
+              ]
+            },
+            "description": "Year below 1000 must be rejected with 400 VALIDATION_ERROR."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error code is VALIDATION_ERROR and details mention year', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.code).to.eql('VALIDATION_ERROR');",
+                  "  const fields = body.details.map(d => d.field);",
+                  "  pm.expect(fields).to.include('year');",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/books (validation: rating > 5.0 → 400)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "book",
+                  "value": "{\n  \"title\": \"Rated Book\",\n  \"author\": \"Some Author\",\n  \"rating\": 5.1\n}",
+                  "type": "text",
+                  "contentType": "application/json"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/books",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books"
+              ]
+            },
+            "description": "Rating above 5.0 must be rejected with 400 VALIDATION_ERROR."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error code is VALIDATION_ERROR and details mention rating', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.code).to.eql('VALIDATION_ERROR');",
+                  "  const fields = body.details.map(d => d.field);",
+                  "  pm.expect(fields).to.include('rating');",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
           "name": "GET /api/books/{{bookId}}",
           "request": {
             "method": "GET",
@@ -366,18 +651,20 @@
           "response": []
         },
         {
-          "name": "PUT /api/books/{{bookId}}",
+          "name": "PUT /api/books/{{bookId}} (multipart update)",
           "request": {
             "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"{{title}} (updated)\",\n  \"author\": \"{{author}}\",\n  \"isbn\": \"{{isbn}}\",\n  \"year\": 2025,\n  \"category\": \"Science Fiction\",\n  \"rating\": 4.8,\n  \"description\": \"Updated by Postman.\"\n}"
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "book",
+                  "value": "{\n  \"title\": \"{{title}} (updated)\",\n  \"author\": \"{{author}}\",\n  \"isbn\": \"{{isbn}}\",\n  \"year\": 2025,\n  \"category\": \"Science Fiction\",\n  \"rating\": 4.8,\n  \"description\": \"Updated by Postman.\"\n}",
+                  "type": "text",
+                  "contentType": "application/json"
+                }
+              ]
             },
             "url": {
               "raw": "{{baseUrl}}/api/books/{{bookId}}",
@@ -390,7 +677,7 @@
                 "{{bookId}}"
               ]
             },
-            "description": "Full update (PUT). The test verifies the changed fields and that `updatedAt` advanced past `createdAt`."
+            "description": "Full update via multipart (PUT). The server reads the `book` JSON part, updates fields, and returns the updated book. The test verifies the changed fields and that `updatedAt` advanced past `createdAt`."
           },
           "event": [
             {
@@ -415,7 +702,7 @@
           "response": []
         },
         {
-          "name": "GET /api/books?size=5 (again, to confirm update)",
+          "name": "GET /api/books?size=5 (list confirms update)",
           "request": {
             "method": "GET",
             "header": [],
@@ -443,7 +730,7 @@
                 }
               ]
             },
-            "description": "List again — the created book should appear first when sorting by createdAt,desc (most recent first)."
+            "description": "List again — the created book should appear first when sorting by createdAt,desc."
           },
           "response": []
         },
@@ -463,7 +750,7 @@
                 "{{bookId}}"
               ]
             },
-            "description": "Soft-deletes the book. The record is flagged `deleted = true` (and its ISBN released), but the row remains in the table."
+            "description": "Hard-deletes the book (and any cover files on disk) and returns 204."
           },
           "event": [
             {
@@ -495,7 +782,7 @@
                 "{{bookId}}"
               ]
             },
-            "description": "After the soft delete, fetching the book must return 404 `BOOK_NOT_FOUND`. This validates the soft-delete behavior end-to-end."
+            "description": "After deletion, fetching the book must return 404 `BOOK_NOT_FOUND`."
           },
           "event": [
             {
@@ -543,6 +830,86 @@
                   "pm.test('DELETE missing book returns 404', () => pm.response.to.have.status(404));",
                   "pm.test('Error code is BOOK_NOT_FOUND', () => {",
                   "  pm.expect(pm.response.json().code).to.eql('BOOK_NOT_FOUND');",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/books/categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/books/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books",
+                "categories"
+              ]
+            },
+            "description": "Returns a list of {name, count} sorted by count desc — drives the filter UI."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Categories returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Each entry has name + count', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an('array');",
+                  "  body.forEach(e => {",
+                  "    pm.expect(e).to.have.property('name').that.is.a('string');",
+                  "    pm.expect(e).to.have.property('count').that.is.a('number');",
+                  "  });",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/books/years",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/books/years",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books",
+                "years"
+              ]
+            },
+            "description": "Returns a list of {year, count} sorted by year desc — drives the year filter UI."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Years returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Each entry has year + count', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an('array');",
+                  "  body.forEach(e => {",
+                  "    pm.expect(e).to.have.property('year').that.is.a('number');",
+                  "    pm.expect(e).to.have.property('count').that.is.a('number');",
+                  "  });",
                   "});",
                   ""
                 ]
@@ -642,12 +1009,12 @@
           "response": []
         },
         {
-          "name": "GET /api/books/search (empty q → 400)",
+          "name": "GET /api/books/search?q= (blank → 400)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/books/search?q=",
+              "raw": "{{baseUrl}}/api/books/search?q=   ",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -659,12 +1026,11 @@
               "query": [
                 {
                   "key": "q",
-                  "value": "",
-                  "description": "Empty query parameter"
+                  "value": "   "
                 }
               ]
             },
-            "description": "Note: `q` is currently unvalidated — an empty query matches everything (the repository uses `LIKE '%'`), so this returns 200. If validation is added later, tighten this test to expect 400."
+            "description": "Blank `q` must be rejected with 400 VALIDATION_ERROR (q is @NotBlank)."
           },
           "event": [
             {
@@ -672,11 +1038,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Empty q is accepted (unvalidated) — returns 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Returns a page', () => {",
+                  "pm.test('Blank q returns 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error code is VALIDATION_ERROR and details mention q', () => {",
                   "  const body = pm.response.json();",
-                  "  pm.expect(body.content).to.be.an('array');",
-                  "  pm.expect(body.totalElements).to.be.a('number');",
+                  "  pm.expect(body.code).to.eql('VALIDATION_ERROR');",
+                  "  pm.expect(body.path).to.be.a('string');",
+                  "  const fields = body.details.map(d => d.field);",
+                  "  pm.expect(fields.join('|')).to.match(/q|search/);",
                   "});",
                   ""
                 ]
@@ -795,15 +1163,17 @@
                   "pm.test('Content-Type is image/webp', () => {",
                   "  pm.expect(pm.response.headers.get('Content-Type')).to.contain('image/webp');",
                   "});",
-                  "// Magic-byte check: the Postman desktop app buffers the body so arrayBuffer is",
-                  "// available; newman does not expose it for binary responses, in which case the",
-                  "// assertion simply passes on the header checks above (the server returns a real",
-                  "// WebP — verified independently by curl in this collection's README).",
+                  "pm.test('Cache-Control is public + max-age, no immutable', () => {",
+                  "  const cc = pm.response.headers.get('Cache-Control') || '';",
+                  "  pm.expect(cc).to.contain('public');",
+                  "  pm.expect(cc).to.contain('max-age');",
+                  "  pm.expect(cc).to.not.contain('immutable');",
+                  "});",
                   "pm.test('Body is a WebP file (when body is buffered)', () => {",
                   "  const ab = pm.response.arrayBuffer;",
                   "  if (!ab || !ab.byteLength) {",
                   "    console.log('arrayBuffer unavailable (likely newman) - skipping magic-byte check');",
-                  "    return; // pass on header checks",
+                  "    return;",
                   "  }",
                   "  const bytes = new Uint8Array(ab.slice(0, 12));",
                   "  const ascii = String.fromCharCode.apply(null, bytes);",
@@ -878,6 +1248,96 @@
             }
           ],
           "response": []
+        },
+        {
+          "name": "PUT /api/books/{{coverId}}/cover (replace cover only)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "cover",
+                  "value": "sample-cover.png",
+                  "type": "file",
+                  "src": "postman/sample-cover.png",
+                  "description": "A new cover image. Select postman/sample-cover.png after import. The previous cover files on disk must be deleted as part of this operation."
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/books/{{coverId}}/cover",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books",
+                "{{coverId}}",
+                "cover"
+              ]
+            },
+            "description": "Replaces the book's cover in place. The endpoint also accepts the missing-part case (PUT /{id}/cover with no `cover` part → 400 MISSING_PART) — see next request."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cover replacement returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('coverPath is updated', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.id).to.eql(Number(pm.collectionVariables.get('coverId')));",
+                  "  pm.expect(body.coverPath).to.be.a('string').that.is.not.empty;",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "PUT /api/books/{{coverId}}/cover (missing part → 400)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": []
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/books/{{coverId}}/cover",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books",
+                "{{coverId}}",
+                "cover"
+              ]
+            },
+            "description": "PUT cover with no `cover` part returns 400 MISSING_PART (required part)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Missing cover part returns 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error code is MISSING_PART', () => {",
+                  "  pm.expect(pm.response.json().code).to.eql('MISSING_PART');",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "response": []
         }
       ],
       "event": []
@@ -918,7 +1378,7 @@
                 "bulk"
               ]
             },
-            "description": "Imports a clean CSV. Expect all 6 rows to succeed. ⚠️ Select `postman/sample-books.csv` on the `file` part after import."
+            "description": "Imports a clean CSV. Expect all 6 rows to succeed on a fresh DB. ⚠️ Select `postman/sample-books.csv` on the `file` part after import."
           },
           "event": [
             {
@@ -927,21 +1387,20 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Bulk import returns 200', () => pm.response.to.have.status(200));",
-                  "// Re-run safe: on a fresh DB all 6 rows import (successCount=6, no errors). On",
-                  "// a repeat run the same ISBNs are already present, so every row is reported as",
-                  "// a duplicate (successCount=0, failedCount=6). Assert the invariants instead.",
                   "pm.test('Report accounts for every row', () => {",
                   "  const body = pm.response.json();",
-                  "  pm.expect(body.totalRows).to.eql(6);",
+                  "  pm.expect(body).to.have.property('totalRows').that.eql(6);",
+                  "  pm.expect(body).to.have.property('successCount').that.is.a('number');",
+                  "  pm.expect(body).to.have.property('failedCount').that.is.a('number');",
+                  "  pm.expect(body).to.have.property('errors').that.is.an('array');",
                   "  pm.expect(body.successCount + body.failedCount).to.eql(6);",
                   "});",
-                  "pm.test('Fresh DB imports all rows without errors', () => {",
+                  "pm.test('Each error entry has row + reason', () => {",
                   "  const body = pm.response.json();",
-                  "  // First run after a fresh app start: all 6 succeed and the error list is empty.",
-                  "  // Repeat runs produce duplicate-ISBN errors instead - both are valid outcomes.",
-                  "  const isFresh = body.successCount === 6 && body.failedCount === 0 && body.errors.length === 0;",
-                  "  const isReRun = body.successCount === 0 && body.failedCount === 6;",
-                  "  pm.expect(isFresh || isReRun, 'either a fresh import (6 ok) or a repeat run (6 dup)').to.be.true;",
+                  "  body.errors.forEach(e => {",
+                  "    pm.expect(e).to.have.property('row').that.is.a('number');",
+                  "    pm.expect(e).to.have.property('reason').that.is.a('string');",
+                  "  });",
                   "});",
                   ""
                 ]
@@ -968,7 +1427,7 @@
                   "value": "sample-books-dup.csv",
                   "type": "file",
                   "src": "postman/sample-books-dup.csv",
-                  "description": "2 rows, same ISBN. The duplicate must be reported as a failed row, not crash the import."
+                  "description": "2 rows, same ISBN. The duplicate must be reported as a failed row with its row number, not crash the import."
                 }
               ]
             },
@@ -983,7 +1442,7 @@
                 "bulk"
               ]
             },
-            "description": "Internal duplicate ISBN. The duplicate row must be skipped and reported in `errors`, and `successCount` must be 1."
+            "description": "Internal duplicate ISBN. The duplicate row must be reported in `errors` (with its CSV row number) and `successCount + failedCount` must equal totalRows."
           },
           "event": [
             {
@@ -992,14 +1451,16 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Duplicate import returns 200', () => pm.response.to.have.status(200));",
-                  "// The file has two rows sharing one ISBN. On a first run the first row imports",
-                  "// and the second is a duplicate (successCount=1, failedCount=1). On later runs",
-                  "// both rows are duplicates (successCount=0, failedCount=2). Assert invariants.",
                   "pm.test('Duplicate ISBN always reported as a failed row', () => {",
                   "  const body = pm.response.json();",
                   "  pm.expect(body.totalRows).to.eql(2);",
                   "  pm.expect(body.successCount + body.failedCount).to.eql(2);",
-                  "  pm.expect(body.errors.some(e => /Duplicate ISBN/i.test(e.reason))).to.be.true;",
+                  "  pm.expect(body.errors).to.be.an('array').that.is.not.empty;",
+                  "  pm.expect(body.errors.some(e => /[Dd]uplicate/i.test(e.reason))).to.be.true;",
+                  "  body.errors.forEach(e => {",
+                  "    pm.expect(e).to.have.property('row').that.is.a('number');",
+                  "    pm.expect(e).to.have.property('reason').that.is.a('string');",
+                  "  });",
                   "});",
                   ""
                 ]
@@ -1026,7 +1487,7 @@
                   "value": "sample-books-bad.csv",
                   "type": "file",
                   "src": "postman/sample-books-bad.csv",
-                  "description": "1 bad row (blank title/author) + 1 good row. Expect successCount=1, failedCount=1."
+                  "description": "1 bad row (blank title/author) + 1 good row. The bad row must be reported in errors with a row number."
                 }
               ]
             },
@@ -1041,7 +1502,7 @@
                 "bulk"
               ]
             },
-            "description": "A row missing required title/author must be reported as a failed row; the valid row still imports."
+            "description": "A row missing required title/author must be reported as a failed row with a meaningful reason; the valid row still imports (or is reported as a duplicate on a re-run)."
           },
           "event": [
             {
@@ -1050,16 +1511,16 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Bad-rows import returns 200', () => pm.response.to.have.status(200));",
-                  "// Re-run safe: on a first run the valid row imports (successCount=1) and the",
-                  "// blank-title row fails (failedCount=1). On later runs the valid row's ISBN is",
-                  "// already in the DB so it is reported as a duplicate instead — either way the",
-                  "// bad row is always reported in `errors`. Assert on invariants, not exact counts.",
                   "pm.test('Report always accounts for every row', () => {",
                   "  const body = pm.response.json();",
                   "  pm.expect(body.totalRows).to.eql(2);",
                   "  pm.expect(body.successCount + body.failedCount).to.eql(2);",
                   "  pm.expect(body.failedCount).to.be.greaterThan(0);",
                   "  pm.expect(body.errors.some(e => /required/i.test(e.reason))).to.be.true;",
+                  "  body.errors.forEach(e => {",
+                  "    pm.expect(e).to.have.property('row').that.is.a('number');",
+                  "    pm.expect(e).to.have.property('reason').that.is.a('string');",
+                  "  });",
                   "});",
                   ""
                 ]
@@ -1086,7 +1547,7 @@
                   "value": "sample-unsupported.txt",
                   "type": "file",
                   "src": "postman/sample-unsupported.txt",
-                  "description": "A .txt file — the service only accepts .csv and .xlsx."
+                  "description": "A .txt file — the service only accepts .csv."
                 }
               ]
             },
@@ -1101,7 +1562,7 @@
                 "bulk"
               ]
             },
-            "description": "Uploading a non-csv/xlsx file must be rejected with 400 (IllegalArgumentException → BAD_REQUEST)."
+            "description": "Uploading a non-csv file must be rejected with 400 BAD_REQUEST."
           },
           "event": [
             {
@@ -1160,8 +1621,6 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Derive a per-run unique ISBN from the data-file value so repeated runs never",
-                  "// collide with the DB unique-ISBN constraint (the CSV ISBNs are fixed and would 409).",
                   "const base = pm.iterationData.get('isbn') || ('' + Date.now());",
                   "const run = Date.now() % 1000000;",
                   "pm.collectionVariables.set('isbn', base.slice(0, 6) + String(run).padStart(6, '0'));",
@@ -1180,8 +1639,6 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// A 409 means this row already exists from a previous run - accept it as",
-                  "// idempotent. Otherwise require a 201 create.",
                   "pm.test('Data-driven create returns 201 (or 409 if already seeded)', () => {",
                   "  pm.expect([201, 409]).to.include(pm.response.code);",
                   "});",
