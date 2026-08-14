@@ -1349,12 +1349,7 @@
           "name": "POST /api/books/bulk (sample-books.csv)",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "multipart/form-data"
-              }
-            ],
+            "header": [],
             "body": {
               "mode": "formdata",
               "formdata": [
@@ -1413,12 +1408,7 @@
           "name": "POST /api/books/bulk (sample-books-dup.csv)",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "multipart/form-data"
-              }
-            ],
+            "header": [],
             "body": {
               "mode": "formdata",
               "formdata": [
@@ -1473,12 +1463,7 @@
           "name": "POST /api/books/bulk (sample-books-bad.csv)",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "multipart/form-data"
-              }
-            ],
+            "header": [],
             "body": {
               "mode": "formdata",
               "formdata": [
@@ -1533,12 +1518,7 @@
           "name": "POST /api/books/bulk (unsupported format → 400)",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "multipart/form-data"
-              }
-            ],
+            "header": [],
             "body": {
               "mode": "formdata",
               "formdata": [

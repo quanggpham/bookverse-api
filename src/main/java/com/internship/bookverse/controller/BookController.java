@@ -151,8 +151,19 @@ public class BookController {
         }
 
         List<Sort.Order> orders = new ArrayList<>();
-        for (String sortParameter : sortParameters) {
-            String[] parts = sortParameter.split(",", -1);
+        for (int i = 0; i < sortParameters.size(); i++) {
+            String param = sortParameters.get(i).trim();
+            if (param.isEmpty()) {
+                continue;
+            }
+
+            if ((param.equalsIgnoreCase("asc") || param.equalsIgnoreCase("desc")) && !orders.isEmpty()) {
+                Sort.Order lastOrder = orders.remove(orders.size() - 1);
+                orders.add(new Sort.Order(Sort.Direction.fromString(param), lastOrder.getProperty()));
+                continue;
+            }
+
+            String[] parts = param.split(",", -1);
             String property = parts[0].trim();
             if (parts.length > 2 || property.isEmpty() || !ALLOWED_SORT_PROPERTIES.contains(property)) {
                 throw new IllegalArgumentException("Unsupported sort property: " + property);
@@ -163,7 +174,7 @@ public class BookController {
                     : Sort.Direction.ASC;
             orders.add(new Sort.Order(direction, property));
         }
-        return PageRequest.of(page, size, Sort.by(orders));
+        return PageRequest.of(page, size, orders.isEmpty() ? defaultSort : Sort.by(orders));
     }
 
     @GetMapping("/categories")

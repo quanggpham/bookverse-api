@@ -87,14 +87,30 @@ public class GlobalExceptionHandler {
                         .build());
     }
 
-    @ExceptionHandler(MissingServletRequestPartException.class)
+    @ExceptionHandler({MissingServletRequestPartException.class, org.springframework.web.bind.MissingServletRequestParameterException.class})
     public ResponseEntity<ErrorResponse> handleMissingPart(
-            MissingServletRequestPartException ex, HttpServletRequest request) {
-        log.warn("400 MISSING_PART: {} {}", request.getMethod(), request.getRequestURI());
+            Exception ex, HttpServletRequest request) {
+        String partName = ex instanceof MissingServletRequestPartException partEx 
+                ? partEx.getRequestPartName() 
+                : ((org.springframework.web.bind.MissingServletRequestParameterException) ex).getParameterName();
+        log.warn("400 MISSING_PART: {} {} — missing part/parameter: {}", request.getMethod(), request.getRequestURI(), partName);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.builder()
                         .code("MISSING_PART")
-                        .message("Required part is missing: " + ex.getRequestPartName())
+                        .message("Required part is missing: " + partName)
+                        .timestamp(LocalDateTime.now())
+                        .path(request.getRequestURI())
+                        .build());
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MultipartException.class)
+    public ResponseEntity<ErrorResponse> handleMultipartException(
+            org.springframework.web.multipart.MultipartException ex, HttpServletRequest request) {
+        log.warn("400 BAD_REQUEST: {} {} — {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.builder()
+                        .code("BAD_REQUEST")
+                        .message("Failed to parse multipart request: " + ex.getMessage())
                         .timestamp(LocalDateTime.now())
                         .path(request.getRequestURI())
                         .build());
